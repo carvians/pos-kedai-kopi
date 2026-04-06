@@ -169,14 +169,28 @@
         function checkout() {
             if(cart.length === 0) return alert("Keranjang masih kosong!");
             const id = "ORD-" + Date.now().toString().slice(-4);
+    
+    // Hitung Subtotal, PPN 11%, dan Grand Total
+            const subtotal = cart.reduce((a, b) => a + b.total, 0);
+            const ppn = subtotal * 0.11; // PPN 11%
+            const grandTotal = subtotal + ppn;
+
+    // Kirim data ke server (Kasir akan menerima Grand Total)
             socket.emit('submit_order', { 
                 id: id, items: cart, table: tableNumber, user: customerName,
-                total: cart.reduce((a, b) => a + b.total, 0) 
+                total: grandTotal 
             });
+
+    // Simpan semua data ke memori untuk ditampilkan di halaman Timer
             sessionStorage.setItem('last_order_id', id);
-            sessionStorage.setItem('last_order_total', cart.reduce((a, b) => a + b.total, 0));
+            sessionStorage.setItem('last_order_items', JSON.stringify(cart)); // Simpan rincian item
+            sessionStorage.setItem('last_order_subtotal', subtotal);
+            sessionStorage.setItem('last_order_ppn', ppn);
+            sessionStorage.setItem('last_order_total', grandTotal);
+
             window.location.href = "checkout-pending.html";
         }
+
 
         // Inisialisasi
         initStandFilters();
