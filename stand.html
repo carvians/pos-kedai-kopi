@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="bg-[#121212] text-white p-10">
+    <div class="flex justify-between items-center mb-10">
+        <h1 class="text-3xl font-black italic tracking-tighter">KITCHEN MONITOR</h1>
+        <div class="bg-green-500/20 text-green-500 px-4 py-1 rounded-full text-xs font-bold border border-green-500">LIVE CONNECTION</div>
+    </div>
+
+    <div id="kitchen-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        </div>
+
+    <script>
+        const socket = io();
+        const MY_STAND = "KOPI_01"; // Ganti ID stand di sini
+
+        socket.on('order_paid_broadcast', (order) => {
+            const myItems = order.items.filter(i => i.stand === MY_STAND);
+            if(myItems.length > 0) {
+                const card = document.createElement('div');
+                card.className = "bg-[#1e1e1e] border border-stone-800 p-6 rounded-[2rem] shadow-xl animate-in fade-in zoom-in duration-300";
+                card.innerHTML = `
+                    <div class="flex justify-between mb-4">
+                        <span class="text-3xl font-black">#${order.id}</span>
+                        <span class="bg-white text-black px-4 py-1 rounded-full text-[10px] font-bold">MEJA ${order.table}</span>
+                    </div>
+                    <ul class="mb-6 opacity-80">
+                        ${myItems.map(i => `<li class="border-b border-white/5 py-2">✅ ${i.name}</li>`).join('')}
+                    </ul>
+                    <button onclick="this.parentElement.remove()" class="w-full bg-orange-600 py-3 rounded-xl font-bold">SELESAI / CETAK</button>
+                `;
+                document.getElementById('kitchen-grid').appendChild(card);
+                new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3').play();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome | O'Coffee Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #634832; }
+        .login-card { background: #fdfaf7; border-radius: 50px 50px 0 0; }
+    </style>
+</head>
+<body class="h-screen flex flex-col justify-end">
+    <div class="flex-1 flex flex-col items-center justify-center text-white p-10">
+        <div class="w-20 h-20 bg-white/20 rounded-[30px] flex items-center justify-center text-4xl mb-4 backdrop-blur-md">☕</div>
+        <h1 class="text-3xl font-extrabold tracking-tight">Kopi & Foodcourt</h1>
+        <p class="opacity-70 text-sm mt-2 text-center">Silakan isi detail meja Anda untuk mulai memesan makanan lezat!</p>
+    </div>
+
+    <div class="login-card p-10 shadow-2xl">
+        <div class="mb-8">
+            <label class="block text-[10px] uppercase font-black text-stone-400 tracking-widest mb-2">Nama Pemesan</label>
+            <input type="text" id="cust-name" placeholder="Contoh: Carvian" 
+                class="w-full bg-stone-100 border-none p-5 rounded-3xl focus:ring-2 focus:ring-[#634832] transition-all outline-none font-bold text-stone-700">
+        </div>
+
+        <div class="mb-10">
+            <label class="block text-[10px] uppercase font-black text-stone-400 tracking-widest mb-2">Nomor Meja</label>
+            <select id="table-num" class="w-full bg-stone-100 border-none p-5 rounded-3xl outline-none font-bold text-stone-700 appearance-none">
+                <option value="01">Meja 01</option>
+                <option value="02">Meja 02</option>
+                <option value="03">Meja 03</option>
+                <option value="04">Meja 04</option>
+                <option value="05">Meja 05</option>
+            </select>
+        </div>
+
+        <button onclick="startOrder()" class="w-full bg-[#3d2b1f] text-white p-6 rounded-[2rem] font-bold shadow-xl active:scale-95 transition-all mb-4">
+            MULAI PESAN &rarr;
+        </button>
+    </div>
+
+    <script>
+        function startOrder() {
+            const name = document.getElementById('cust-name').value;
+            const table = document.getElementById('table-num').value;
+
+            if(!name) return alert("Tuliskan nama kamu dulu ya!");
+
+            // Simpan data di memori browser (Session Storage)
+            sessionStorage.setItem('customer_name', name);
+            sessionStorage.setItem('table_number', table);
+
+            // Pindah ke halaman menu
+            window.location.href = "index.html";
+        }
+    </script>
+</body>
+</html>

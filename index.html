@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menu | Kedai Kopi & Foodcourt</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fdfaf7; }
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
+        .active-tab { background: #634832 !important; color: white !important; transform: scale(1.05); }
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="pb-32">
+    <header class="p-8 bg-[#634832] text-white rounded-b-[40px] shadow-2xl mb-6 transition-all">
+        <p class="text-[10px] uppercase tracking-widest opacity-60">Pesanan Untuk</p>
+        <h1 class="text-2xl font-extrabold">
+            <span id="display-name" class="capitalize">User</span> @ Meja <span id="table-num">00</span> ✨
+        </h1>
+    </header>
+
+    <nav class="flex gap-3 px-6 mb-8 overflow-x-auto no-scrollbar">
+        <button onclick="renderMenu('makanan')" class="cat-btn active-tab px-6 py-2 rounded-2xl bg-white border border-stone-200 font-bold text-sm shadow-sm transition-all whitespace-nowrap">🍔 Makanan</button>
+        <button onclick="renderMenu('minuman')" class="cat-btn px-6 py-2 rounded-2xl bg-white border border-stone-200 font-bold text-sm shadow-sm transition-all whitespace-nowrap">☕ Minuman</button>
+        <button onclick="renderMenu('snacks')" class="cat-btn px-6 py-2 rounded-2xl bg-white border border-stone-200 font-bold text-sm shadow-sm transition-all whitespace-nowrap">🍟 Snacks</button>
+    </nav>
+
+    <main id="menu-area" class="px-6 grid gap-6">
+        </main>
+
+    <div id="under-construction" class="hidden flex flex-col items-center py-20 opacity-80 text-center">
+        <div class="text-7xl animate-bounce mb-4 text-stone-300">🏗️</div>
+        <h3 class="font-bold text-stone-800">Sabar Ya, Kak!</h3>
+        <p class="text-xs text-stone-500 max-w-[200px]">Menu ini lagi disiapin koki kita yang paling jago.</p>
+    </div>
+
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md">
+        <div class="glass p-5 rounded-[2.5rem] shadow-2xl flex justify-between items-center border border-white">
+            <div>
+                <p class="text-[10px] text-stone-400 uppercase font-bold">Total Tagihan</p>
+                <p id="total-txt" class="text-xl font-extrabold text-[#3d2b1f]">Rp0</p>
+            </div>
+            <button onclick="checkout()" class="bg-[#3d2b1f] text-white px-8 py-4 rounded-[1.8rem] font-bold shadow-lg active:scale-95 transition-all">PESAN SEKARANG</button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        
+        // --- LOGIKA LOGIN SESSION ---
+        const customerName = sessionStorage.getItem('customer_name');
+        const tableNumber = sessionStorage.getItem('table_number');
+
+        // Proteksi: Jika belum login, kembalikan ke login.html
+        if (!customerName || !tableNumber) {
+            window.location.href = "login.html";
+        } else {
+            document.getElementById('display-name').innerText = customerName;
+            document.getElementById('table-num').innerText = tableNumber;
+        }
+
+        let cart = [];
+        const menuData = [
+            { id:1, name: "Iced Latte", price: 25000, fee: 2000, cat: "minuman", img: "https://images.unsplash.com/photo-1541167760496-162955ed8a9f?w=200", stand: "KOPI_01" },
+            { id:2, name: "Nasi Goreng Special", price: 30000, fee: 3000, cat: "makanan", img: "https://images.unsplash.com/photo-1512058560566-427a1bd5a560?w=200", stand: "FOOD_02" }
+        ];
+
+        function renderMenu(cat) {
+            // Update UI Tab Aktif
+            document.querySelectorAll('.cat-btn').forEach(b => {
+                b.classList.remove('active-tab');
+                if(b.innerText.toLowerCase().includes(cat)) {
+                    b.classList.add('active-tab');
+                }
+            });
+
+            const container = document.getElementById('menu-area');
+            const uc = document.getElementById('under-construction');
+            const items = menuData.filter(m => m.cat === cat);
+
+            container.innerHTML = "";
+            if(items.length === 0) {
+                uc.classList.remove('hidden');
+            } else {
+                uc.classList.add('hidden');
+                items.forEach(m => {
+                    container.innerHTML += `
+                    <div class="bg-white p-4 rounded-[2rem] flex items-center shadow-sm border border-stone-100 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <img src="${m.img}" class="w-20 h-20 rounded-2xl object-cover shadow-sm">
+                        <div class="ml-4 flex-1">
+                            <h4 class="font-bold text-stone-800">${m.name}</h4>
+                            <p class="text-xs text-stone-400 mb-1">Rp${m.price.toLocaleString()}</p>
+                            <div class="flex justify-between items-center">
+                                <span class="font-bold text-[#634832]">Rp${(m.price + m.fee).toLocaleString()}</span>
+                                <button onclick="addToCart('${m.name}', ${m.price+m.fee}, '${m.stand}')" class="w-10 h-10 bg-stone-100 rounded-2xl flex items-center justify-center font-bold text-xl active:bg-stone-200 active:scale-90 transition-all text-stone-600 shadow-inner">+</button>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+            }
+        }
+
+        function addToCart(name, total, stand) {
+            cart.push({name, total, stand});
+            const sum = cart.reduce((a, b) => a + b.total, 0);
+            document.getElementById('total-txt').innerText = `Rp${sum.toLocaleString()}`;
+        }
+
+    function checkout() {
+        if(cart.length === 0) return alert("Keranjang masih kosong!");
+    
+        const id = "ORD-" + Date.now().toString().slice(-4);
+    
+        // Kirim data ke server
+        socket.emit('submit_order', { 
+            id: id, 
+            items: cart, 
+            table: tableNumber, 
+            user: customerName,
+            total: cart.reduce((a, b) => a + b.total, 0) 
+        });
+
+        // SIMPAN DATA ORDER UNTUK HALAMAN TIMER
+        sessionStorage.setItem('last_order_id', id);
+        sessionStorage.setItem('last_order_total', cart.reduce((a, b) => a + b.total, 0));
+
+        // PINDAH KE HALAMAN TIMER
+        window.location.href = "checkout-pending.html";
+    }
+
+        // Render awal
+        renderMenu('makanan');
+    </script>
+</body>
+</html>
