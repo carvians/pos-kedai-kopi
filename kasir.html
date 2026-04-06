@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kasir Pusat | POS Hub</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fdfaf7; }
+        /* Sembunyikan scrollbar tapi tetap bisa di-scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="p-6 md:p-10 text-stone-800">
+
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 border-b border-stone-200 pb-6">
+        <div>
+            <h1 class="text-3xl md:text-4xl font-black tracking-tight text-[#3d2b1f]">KASIR PUSAT 💸</h1>
+            <p class="text-xs font-bold text-stone-500 uppercase tracking-widest mt-2">Sistem Pembayaran Terpusat</p>
+        </div>
+        <div class="flex gap-4 items-center">
+            <div class="bg-white px-6 py-3 rounded-2xl shadow-sm font-bold text-stone-600 border border-stone-200 flex items-center gap-2">
+                <span class="text-[10px] uppercase tracking-widest text-stone-400">Kas Masuk:</span> 
+                <span id="revenue" class="text-green-600 font-black text-xl">Rp0</span>
+            </div>
+            <div class="bg-green-100 text-green-600 px-4 py-3 rounded-2xl text-xs font-black border border-green-200 animate-pulse tracking-widest shadow-sm">
+                LIVE
+            </div>
+        </div>
+    </div>
+
+    <div id="empty-state" class="flex flex-col items-center justify-center py-20 opacity-40 transition-all duration-500">
+        <div class="text-7xl mb-4">😴</div>
+        <h3 class="font-bold text-2xl text-stone-800">Antrean Kosong</h3>
+        <p class="text-sm font-bold text-stone-500 mt-2">Kasir bisa istirahat atau ngopi dulu.</p>
+    </div>
+
+    <div id="queue-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        </div>
+
+    <script>
+        const socket = io();
+        let totalRevenue = 0;
+        let orderCount = 0;
+
+        // 1. MENDENGARKAN PESANAN BARU DARI SERVER
+        socket.on('new_order_to_cashier', (order) => {
+            // Sembunyikan layar kosong
+            const emptyState = document.getElementById('empty-state');
+            if(emptyState) emptyState.style.display = 'none';
+
+            const container = document.getElementById('queue-container');
+            const card = document.createElement('div');
+            
+            // Beri ID khusus agar gampang dihapus nanti
+            card.id = `order-${order.id}`;
+            card.className = "bg-white p-6 rounded-[2rem] shadow-xl border border-stone-100 flex flex-col justify-between transition-all duration-300 animate-in fade-in slide-in-from-bottom-4";
+            
+            // Render rincian makanan
+            let itemsList = order.items.map(i => `
+                <div class="flex justify-between text-sm mb-3 border-b border-stone-50 pb-3">
+                    <div>
+                        <span class="font-bold text-stone-800">${i.name}</span>
+                        <div class="text-[9px] text-stone-400 font-bold uppercase tracking-widest mt-1">${i.stand}</div>
+                    </div>
+                    <span class="font-bold text-stone-500">Rp${i.total.toLocaleString()}</span>
+                </div>
+            `).join('');
+
+            // Bangun bentuk kartu kasir
+            card.innerHTML = `
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <span class="bg-stone-100 text-stone-500 px-3 py-1 rounded-lg text-[10px] font-black tracking-widest border border-stone-200">#${order.id}</span>
+                        <span class="bg-[#3d2b1f] text-white px-3 py-1 rounded-lg text-[10px] font-black tracking-widest shadow-md">MEJA ${order.table}</span>
+                    </div>
+                    <h3 class="text-2xl font-black mb-1 capitalize text-stone-800">${order.user}</h3>
+                    <p class="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-6 animate-pulse">Menunggu Pembayaran...</p>
+                    
+                    <div class="mb-6 h-32 overflow-y-auto no-scrollbar pr-2">
+                        ${itemsList}
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-stone-200">
+                    <div class="flex justify-between items-end mb-4">
+                        <span class="text-[10px] font-black text-stone-400 tracking-widest">TOTAL TAGIHAN</span>
+                        <span class="text-3xl font-black text-[#634832]">Rp${order.total.toLocaleString()}</span>
+                    </div>
+                    <button onclick="payOrder('${order.id}', ${order.total}, this)" class="w-full bg-[#634832] hover:bg-[#3d2b1f] text-white py-5 rounded-2xl font-black text-sm tracking-widest transition-all active:scale-95 shadow-xl">
+                        LUNAS & TERUSKAN KE DAPUR
+                    </button>
+                </div>
+            `;
+            
+            // Masukkan ke posisi paling atas/depan
+            container.prepend(card);
+            orderCount++;
+            
+            // Bunyikan lonceng pesanan baru masuk
+            new Audio('https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3').play();
+        });
+
+        // 2. FUNGSI SAAT TOMBOL LUNAS DITEKAN
+        function payOrder(id, total, btnElement) {
+            // Munculkan popup konfirmasi agar kasir tidak salah klik
+            if(confirm(`Sudah terima uang Rp${total.toLocaleString()} dari pesanan ini?`)) {
+                
+                // A. Beritahu Server untuk menyuruh dapur masak!
+                socket.emit('confirm_payment', id);
+                
+                // B. Tambah angka di Kas Masuk
+                totalRevenue += total;
+                document.getElementById('revenue').innerText = 'Rp' + totalRevenue.toLocaleString();
+                
+                // C. Hapus kartu dari layar dengan animasi menyusut
+                const card = btnElement.closest(`div[id^="order-"]`);
+                card.classList.add('scale-75', 'opacity-0'); // Animasi hilang
+                
+                setTimeout(() => {
+                    card.remove();
+                    orderCount--;
+                    // Munculkan orang ngorok kalau antrean habis
+                    if(orderCount === 0) document.getElementById('empty-state').style.display = 'flex';
+                }, 300);
+
+                // D. Bunyi Mesin Kasir (Cha-Ching!)
+                new Audio('https://assets.mixkit.co/sfx/preview/mixkit-cash-register-purchase-87.mp3').play();
+            }
+        }
+    </script>
+</body>
+</html>

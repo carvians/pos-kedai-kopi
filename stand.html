@@ -1,13 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Monitor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    </style>
 </head>
-<body class="bg-[#121212] text-white p-10">
-    <div class="flex justify-between items-center mb-10">
-        <h1 class="text-3xl font-black italic tracking-tighter">KITCHEN MONITOR</h1>
-        <div class="bg-green-500/20 text-green-500 px-4 py-1 rounded-full text-xs font-bold border border-green-500">LIVE CONNECTION</div>
+<body class="bg-[#121212] text-white p-10 h-screen overflow-x-hidden">
+
+    <div id="setup-stand" class="fixed inset-0 bg-[#121212] z-50 flex flex-col items-center justify-center p-6 transition-all duration-500">
+        <div class="text-center mb-8">
+            <div class="text-6xl mb-4">👨‍🍳</div>
+            <h2 class="text-3xl font-black tracking-tighter">Pilih Monitor Stand</h2>
+            <p class="text-stone-400 mt-2 text-sm">Layar ini akan menampilkan pesanan khusus untuk:</p>
+        </div>
+        <div class="grid gap-4 w-full max-w-sm">
+            <button onclick="selectStand('O-Coffee Stand')" class="bg-[#1e1e1e] border border-stone-800 hover:border-orange-500 p-5 rounded-2xl font-bold text-lg transition-all active:scale-95 shadow-xl">☕ O-Coffee Stand</button>
+            <button onclick="selectStand('Dapur Mamah')" class="bg-[#1e1e1e] border border-stone-800 hover:border-orange-500 p-5 rounded-2xl font-bold text-lg transition-all active:scale-95 shadow-xl">🍳 Dapur Mamah</button>
+        </div>
+    </div>
+
+    <div class="flex justify-between items-end mb-10 border-b border-stone-800 pb-6">
+        <div>
+            <h1 class="text-4xl font-black italic tracking-tighter text-white">KITCHEN MONITOR</h1>
+            <p class="text-sm text-stone-500 font-bold mt-1 uppercase tracking-widest">Stand Aktif: <span id="active-stand" class="text-orange-500 font-black">Belum Dipilih</span></p>
+        </div>
+        <div class="bg-green-500/20 text-green-500 px-4 py-2 rounded-full text-[10px] font-black border border-green-500/50 animate-pulse tracking-widest shadow-[0_0_15px_rgba(34,197,94,0.3)]">
+            LIVE CONNECTION
+        </div>
     </div>
 
     <div id="kitchen-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -15,24 +40,46 @@
 
     <script>
         const socket = io();
-        const MY_STAND = "KOPI_01"; // Ganti ID stand di sini
+        let MY_STAND = ""; // Variabelnya sekarang let, bukan const
+
+        // Fungsi saat koki memilih stand
+        function selectStand(standName) {
+            MY_STAND = standName;
+            document.getElementById('setup-stand').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('setup-stand').classList.add('hidden');
+            }, 300);
+            document.getElementById('active-stand').innerText = standName;
+        }
 
         socket.on('order_paid_broadcast', (order) => {
             const myItems = order.items.filter(i => i.stand === MY_STAND);
+            
             if(myItems.length > 0) {
                 const card = document.createElement('div');
-                card.className = "bg-[#1e1e1e] border border-stone-800 p-6 rounded-[2rem] shadow-xl animate-in fade-in zoom-in duration-300";
+                card.className = "bg-[#1e1e1e] border border-stone-800 p-6 rounded-[2rem] shadow-2xl animate-in fade-in zoom-in duration-300";
                 card.innerHTML = `
-                    <div class="flex justify-between mb-4">
-                        <span class="text-3xl font-black">#${order.id}</span>
-                        <span class="bg-white text-black px-4 py-1 rounded-full text-[10px] font-bold">MEJA ${order.table}</span>
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <span class="text-4xl font-black text-white">#${order.id}</span>
+                            <p class="text-[10px] text-stone-500 font-bold mt-1 uppercase tracking-widest">Pesanan: <span class="text-orange-400 text-xs">${order.user}</span></p>
+                        </div>
+                        <span class="bg-white text-black px-4 py-2 rounded-full text-[10px] font-black tracking-widest shadow-lg">MEJA ${order.table}</span>
                     </div>
-                    <ul class="mb-6 opacity-80">
-                        ${myItems.map(i => `<li class="border-b border-white/5 py-2">✅ ${i.name}</li>`).join('')}
+                    
+                    <ul class="mb-6 opacity-90 space-y-2 mt-4">
+                        ${myItems.map(i => `
+                        <li class="flex items-center gap-3 border-b border-white/5 pb-3 text-sm font-bold">
+                            <span class="bg-stone-800 text-stone-400 w-6 h-6 flex items-center justify-center rounded-md text-[10px]">1x</span> 
+                            ${i.name}
+                        </li>`).join('')}
                     </ul>
-                    <button onclick="this.parentElement.remove()" class="w-full bg-orange-600 py-3 rounded-xl font-bold">SELESAI / CETAK</button>
+                    
+                    <button onclick="this.parentElement.remove()" class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-xl font-black text-xs tracking-widest transition-all shadow-[0_0_15px_rgba(234,88,12,0.4)]">SELESAI / CETAK</button>
                 `;
                 document.getElementById('kitchen-grid').appendChild(card);
+                
+                // Audio Khas Kitchen
                 new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3').play();
             }
         });
