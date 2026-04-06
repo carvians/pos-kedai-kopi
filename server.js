@@ -6,16 +6,21 @@ const io = require('socket.io')(http);
 
 const PORT = process.env.PORT || 3000; 
 
-app.use(express.static(__dirname));
+// --- FIX ROUTING UNTUK RAILWAY ---
+app.use(express.static(path.join(__dirname, '/')));
 app.use(express.json());
+
+// Jalur Utama (Wajib mengarah ke login.html)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
-app.get('/:page', (req, res) => {
-    res.sendFile(path.join(__dirname, req.params.page));
+
+// Jalur Pengaman: Jika user akses namafile.html secara manual
+app.get('/:page.html', (req, res) => {
+    res.sendFile(path.join(__dirname, req.params.page + '.html'));
 });
 
-// DATA MENU PUSAT (Kebenaran Tunggal)
+// DATA MENU PUSAT
 const officialMenu = [
     { id:1, name: "Iced Latte", price: 25000, fee: 2000, stand: "O-Coffee Stand" },
     { id:2, name: "Nasi Goreng Special", price: 30000, fee: 3000, stand: "Dapur Mamah" },
@@ -28,7 +33,6 @@ let orders = [];
 io.on('connection', (socket) => {
     
     socket.on('submit_order', (clientData) => {
-        // --- PROSES VALIDASI (CYBERSECURITY) ---
         let validatedItems = [];
         let subtotal = 0;
 
@@ -45,10 +49,10 @@ io.on('connection', (socket) => {
             }
         });
 
-        const ppn = subtotal * 0.11;
+        // --- KOREKSI PAJAK JADI 10% ---
+        const ppn = subtotal * 0.10; 
         const grandTotal = subtotal + ppn;
 
-        // Data yang disimpan adalah hasil hitung ulang SERVER
         const finalOrder = {
             id: clientData.id,
             user: clientData.user,
@@ -58,12 +62,11 @@ io.on('connection', (socket) => {
             ppn: ppn,
             total: grandTotal,
             status: 'WAITING_PAYMENT',
-            time: new Date().toLocaleTimeString()
+            time: new Date().toLocaleTimeString('id-ID')
         };
 
         orders.push(finalOrder);
         io.emit('new_order_to_cashier', finalOrder);
-        // Kirim update ke admin setiap ada order masuk
         io.emit('admin_update', calculateStats());
     });
 
@@ -72,32 +75,22 @@ io.on('connection', (socket) => {
         if (order) {
             order.status = 'PAID';
             io.emit('order_paid_broadcast', order);
-            io.emit('admin_update', calculateStats()); // Update statistik admin
+            io.emit('admin_update', calculateStats());
         }
     });
 
-    // Kirim data awal saat admin buka halaman
     socket.on('get_admin_stats', () => {
         socket.emit('admin_update', calculateStats());
     });
 });
 
-// Fungsi Hitung Statistik untuk Admin
 function calculateStats() {
-    let stats = {
-        totalSales: 0,
-        paidOrders: 0,
-        standRevenue: {},
-        topItems: {}
-    };
-
+    let stats = { totalSales: 0, paidOrders: 0, standRevenue: {}, topItems: {} };
     orders.filter(o => o.status === 'PAID').forEach(o => {
         stats.totalSales += o.total;
         stats.paidOrders++;
         o.items.forEach(item => {
-            // Per Stand
             stats.standRevenue[item.stand] = (stats.standRevenue[item.stand] || 0) + item.total;
-            // Per Item
             stats.topItems[item.name] = (stats.topItems[item.name] || 0) + 1;
         });
     });
@@ -105,5 +98,5 @@ function calculateStats() {
 }
 
 http.listen(PORT, () => {
-    console.log(`POS System Secure & Ready on port ${PORT}`);
+    console.log(`POS System Secure & Online on port ${PORT}`);
 });
