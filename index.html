@@ -29,6 +29,10 @@
             letter-spacing: 0.05em;
             text-transform: uppercase;
         }
+
+        /* Animasi Modal */
+        #cart-modal { transition: opacity 0.3s ease; }
+        .modal-content { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
 </head>
 <body class="pb-32">
@@ -52,7 +56,7 @@
     </div>
 
     <main id="menu-area" class="px-6 grid gap-6">
-        </main>
+    </main>
 
     <div id="under-construction" class="hidden flex flex-col items-center py-20 opacity-80 text-center">
         <div class="text-7xl animate-bounce mb-4 text-stone-300">🏗️</div>
@@ -60,13 +64,48 @@
         <p class="text-xs text-stone-500 max-w-[200px]">Menu ini lagi disiapin koki kita yang paling jago.</p>
     </div>
 
-    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md">
+    <div class="fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] max-w-md z-40">
         <div class="glass p-5 rounded-[2.5rem] shadow-2xl flex justify-between items-center border border-white">
-            <div>
-                <p class="text-[10px] text-stone-400 uppercase font-bold">Total Tagihan</p>
+            <div onclick="toggleModal()" class="cursor-pointer active:scale-95 transition-transform">
+                <p class="text-[10px] text-stone-400 uppercase font-bold flex items-center gap-1">
+                    Lihat Detail <span class="text-[8px]">▲</span>
+                </p>
                 <p id="total-txt" class="text-xl font-extrabold text-[#3d2b1f]">Rp0</p>
             </div>
             <button onclick="checkout()" class="bg-[#3d2b1f] text-white px-8 py-4 rounded-[1.8rem] font-bold shadow-lg active:scale-95 transition-all">PESAN SEKARANG</button>
+        </div>
+    </div>
+
+    <div id="cart-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
+        <div onclick="toggleModal()" class="absolute inset-0"></div> <div class="modal-content bg-white w-full max-w-md rounded-t-[3rem] p-8 relative shadow-2xl">
+            <div class="w-12 h-1.5 bg-stone-200 rounded-full mx-auto mb-6"></div>
+            
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-extrabold text-stone-800 tracking-tight">Review Pesanan</h3>
+                <button onclick="toggleModal()" class="text-stone-400 text-sm font-bold">Tutup</button>
+            </div>
+            
+            <div id="cart-items-list" class="max-h-64 overflow-y-auto space-y-3 mb-6 no-scrollbar">
+                </div>
+
+            <div class="border-t border-stone-100 pt-5 mb-8 space-y-2">
+                <div class="flex justify-between text-stone-400 text-xs font-bold uppercase tracking-wider">
+                    <span>Subtotal</span>
+                    <span id="modal-subtotal">Rp0</span>
+                </div>
+                <div class="flex justify-between text-stone-400 text-xs font-bold uppercase tracking-wider">
+                    <span>Pajak (11%)</span>
+                    <span id="modal-ppn">Rp0</span>
+                </div>
+                <div class="flex justify-between font-extrabold text-xl text-[#3d2b1f] pt-2">
+                    <span>Total Bayar</span>
+                    <span id="modal-total-price">Rp0</span>
+                </div>
+            </div>
+
+            <button onclick="checkout()" class="w-full bg-[#3d2b1f] text-white p-5 rounded-3xl font-bold shadow-lg active:scale-95 transition-all">
+                KONFIRMASI & PESAN
+            </button>
         </div>
     </div>
 
@@ -92,7 +131,6 @@
             { id:4, name: "Ayam Goreng", price: 22000, fee: 2000, cat: "makanan", img: "https://images.unsplash.com/photo-1562967914-608f82629710?w=200", stand: "Dapur Mamah" }
         ];
 
-        // 1. Fungsi Otomatis Membuat Tombol Stand
         function initStandFilters() {
             const standList = document.getElementById('stand-list');
             const uniqueStands = [...new Set(menuData.map(m => m.stand))];
@@ -107,12 +145,8 @@
             });
         }
 
-        // 2. Fungsi Filter Berdasarkan Stand
         function filterByStand(standName, element) {
-            // Reset tab kategori (opsional, agar tidak bingung)
             document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active-tab'));
-            
-            // Highlight tombol stand yang dipilih
             document.querySelectorAll('.stand-filter-btn').forEach(b => b.classList.remove('active-stand'));
             element.classList.add('active-stand');
 
@@ -120,7 +154,6 @@
             renderItems(items);
         }
 
-        // 3. Fungsi Filter Berdasarkan Kategori
         function renderMenu(cat) {
             document.querySelectorAll('.stand-filter-btn').forEach(b => b.classList.remove('active-stand'));
             document.querySelectorAll('.cat-btn').forEach(b => {
@@ -132,7 +165,6 @@
             renderItems(items);
         }
 
-        // 4. Fungsi Utama Menampilkan Item
         function renderItems(items) {
             const container = document.getElementById('menu-area');
             const uc = document.getElementById('under-construction');
@@ -148,11 +180,11 @@
                         <img src="${m.img}" class="w-20 h-20 rounded-2xl object-cover shadow-sm">
                         <div class="ml-4 flex-1">
                             <div class="stand-badge">${m.stand}</div>
-                            <h4 class="font-bold text-stone-800 leading-tight">${m.name}</h4>
-                            <p class="text-[10px] text-stone-400 mb-1">Rp${m.price.toLocaleString()}</p>
-                            <div class="flex justify-between items-center">
-                                <span class="font-bold text-[#634832]">Rp${(m.price + m.fee).toLocaleString()}</span>
-                                <button onclick="addToCart('${m.name}', ${m.price+m.fee}, '${m.stand}')" class="w-10 h-10 bg-stone-100 rounded-2xl flex items-center justify-center font-bold text-xl active:bg-stone-200 active:scale-90 transition-all text-stone-600 shadow-inner">+</button>
+                            <h4 class="font-bold text-stone-800 leading-tight text-sm">${m.name}</h4>
+                            <p class="text-[9px] text-stone-400">Rp${m.price.toLocaleString()}</p>
+                            <div class="flex justify-between items-center mt-1">
+                                <span class="font-bold text-[#634832] text-sm">Rp${(m.price + m.fee).toLocaleString()}</span>
+                                <button onclick="addToCart('${m.name}', ${m.price+m.fee}, '${m.stand}')" class="w-10 h-10 bg-stone-100 rounded-2xl flex items-center justify-center font-bold text-xl active:scale-90 transition-all text-stone-600 shadow-inner">+</button>
                             </div>
                         </div>
                     </div>`;
@@ -162,28 +194,70 @@
 
         function addToCart(name, total, stand) {
             cart.push({name, total, stand});
+            updateTotalBar();
+        }
+
+        function updateTotalBar() {
             const sum = cart.reduce((a, b) => a + b.total, 0);
             document.getElementById('total-txt').innerText = `Rp${sum.toLocaleString()}`;
+        }
+
+        // --- FUNGSI MODAL ---
+        function toggleModal() {
+            const modal = document.getElementById('cart-modal');
+            modal.classList.toggle('hidden');
+            if (!modal.classList.contains('hidden')) renderCartItems();
+        }
+
+        function renderCartItems() {
+            const list = document.getElementById('cart-items-list');
+            list.innerHTML = "";
+
+            if (cart.length === 0) {
+                list.innerHTML = "<div class='text-center py-10 opacity-30 text-xs font-bold'>KERANJANG KOSONG</div>";
+            }
+
+            cart.forEach((item, index) => {
+                list.innerHTML += `
+                <div class="flex justify-between items-center bg-stone-50 p-4 rounded-2xl border border-stone-100">
+                    <div>
+                        <p class="font-bold text-stone-800 text-xs">${item.name}</p>
+                        <p class="text-[9px] text-stone-400 uppercase">${item.stand}</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold text-[#634832] text-xs font-mono">Rp${item.total.toLocaleString()}</span>
+                        <button onclick="removeFromCart(${index})" class="w-6 h-6 bg-red-50 text-red-400 rounded-lg text-[10px] flex items-center justify-center font-black">×</button>
+                    </div>
+                </div>`;
+            });
+
+            const subtotal = cart.reduce((a, b) => a + b.total, 0);
+            const ppn = subtotal * 0.11;
+            document.getElementById('modal-subtotal').innerText = `Rp${subtotal.toLocaleString()}`;
+            document.getElementById('modal-ppn').innerText = `Rp${ppn.toLocaleString()}`;
+            document.getElementById('modal-total-price').innerText = `Rp${(subtotal + ppn).toLocaleString()}`;
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            updateTotalBar();
+            renderCartItems();
         }
 
         function checkout() {
             if(cart.length === 0) return alert("Keranjang masih kosong!");
             const id = "ORD-" + Date.now().toString().slice(-4);
-    
-    // Hitung Subtotal, PPN 11%, dan Grand Total
             const subtotal = cart.reduce((a, b) => a + b.total, 0);
-            const ppn = subtotal * 0.11; // PPN 11%
+            const ppn = subtotal * 0.11;
             const grandTotal = subtotal + ppn;
 
-    // Kirim data ke server (Kasir akan menerima Grand Total)
             socket.emit('submit_order', { 
                 id: id, items: cart, table: tableNumber, user: customerName,
                 total: grandTotal 
             });
 
-    // Simpan semua data ke memori untuk ditampilkan di halaman Timer
             sessionStorage.setItem('last_order_id', id);
-            sessionStorage.setItem('last_order_items', JSON.stringify(cart)); // Simpan rincian item
+            sessionStorage.setItem('last_order_items', JSON.stringify(cart));
             sessionStorage.setItem('last_order_subtotal', subtotal);
             sessionStorage.setItem('last_order_ppn', ppn);
             sessionStorage.setItem('last_order_total', grandTotal);
@@ -191,8 +265,6 @@
             window.location.href = "checkout-pending.html";
         }
 
-
-        // Inisialisasi
         initStandFilters();
         renderMenu('makanan');
     </script>
