@@ -8,6 +8,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static(__dirname));
 app.use(express.json());
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'login.html'));
+});
+app.get('/:page', (req, res) => {
+    res.sendFile(path.join(__dirname, req.params.page));
+});
 
 // DATA MENU PUSAT (Kebenaran Tunggal)
 const officialMenu = [
