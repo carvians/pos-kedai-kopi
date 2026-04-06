@@ -14,6 +14,11 @@
         /* Sembunyikan scrollbar tapi tetap bisa di-scroll */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @media print {
+            body * { visibility: hidden; }
+            #print-area, #print-area * { visibility: visible; }
+            #print-area { position: absolute; left: 0; top: 0; width: 58mm; font-family: 'Courier New', monospace; color: black; }
+        }
     </style>
 </head>
 <body class="p-6 md:p-10 text-stone-800">
@@ -105,6 +110,33 @@
             // Bunyikan lonceng pesanan baru masuk
             new Audio('https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3').play();
         });
+        
+        function printReceipt(orderId) {
+            // Cari data order dari layar (atau bisa kirim dari server)
+            const card = document.getElementById(`order-${orderId}`);
+            const name = card.querySelector('h3').innerText;
+            const table = card.querySelector('.bg-[#3d2b1f]').innerText;
+    
+            // Buat elemen print sementara
+            const printWindow = document.createElement('div');
+            printWindow.id = "print-area";
+            printWindow.innerHTML = `
+                <div style="text-align:center">
+                    <h3>KEDAI KOPI HUB</h3>
+                    <p>Order: ${orderId}</p>
+                    <hr>
+                </div>
+                <p>${table} - ${name}</p>
+                <hr>
+                ${card.querySelector('.max-h-40').innerHTML}
+                <hr>
+                <h4 style="text-align:right">${card.querySelector('.text-3xl').innerText}</h4>
+                <p style="text-align:center">Terima Kasih!</p>
+            `;
+            document.body.appendChild(printWindow);
+            window.print();
+            document.body.removeChild(printWindow);
+        }
 
         // 2. FUNGSI SAAT TOMBOL LUNAS DITEKAN
         function payOrder(id, total, btnElement) {
