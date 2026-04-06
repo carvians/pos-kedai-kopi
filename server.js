@@ -1,19 +1,24 @@
 const express = require('express');
+const path = require('path'); // Tambahkan ini agar tidak error saat panggil path
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
+
+// 1. Setting Port (Hanya satu kali di sini)
 const PORT = process.env.PORT || 3000; 
 
-http.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// 2. Middleware & Routing
 app.use(express.static(__dirname));
 app.use(express.json());
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
-let orders = []; // Database sementara
 
+// 3. Database Sementara
+let orders = []; 
+
+// 4. Socket.io Logic
 io.on('connection', (socket) => {
     // Saat pelanggan kirim order
     socket.on('submit_order', (data) => {
@@ -32,4 +37,7 @@ io.on('connection', (socket) => {
     });
 });
 
-http.listen(3000, () => console.log('POS System Ready: http://localhost:3000'));
+// 5. Jalankan Server (HANYA SEKALI DI SINI)
+http.listen(PORT, () => {
+    console.log(`POS System Ready on port ${PORT}`);
+});
