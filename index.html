@@ -232,7 +232,7 @@
             });
 
             const subtotal = cart.reduce((a, b) => a + b.total, 0);
-            const ppn = subtotal * 0.11;
+            const ppn = subtotal * 0.10;
             document.getElementById('modal-subtotal').innerText = `Rp${subtotal.toLocaleString()}`;
             document.getElementById('modal-ppn').innerText = `Rp${ppn.toLocaleString()}`;
             document.getElementById('modal-total-price').innerText = `Rp${(subtotal + ppn).toLocaleString()}`;
@@ -248,7 +248,7 @@
             if(cart.length === 0) return alert("Keranjang masih kosong!");
             const id = "ORD-" + Date.now().toString().slice(-4);
             const subtotal = cart.reduce((a, b) => a + b.total, 0);
-            const ppn = subtotal * 0.11;
+            const ppn = subtotal * 0.10;
             const grandTotal = subtotal + ppn;
 
             socket.emit('submit_order', { 
