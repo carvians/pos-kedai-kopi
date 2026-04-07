@@ -86,6 +86,19 @@ app.get('/:page.html', (req, res) => {
 
 io.on('connection', (socket) => {
     
+    // --- FITUR HAPUS MENU ---
+    socket.on('admin_delete_menu', async (id) => {
+        await Menu.findByIdAndDelete(id);
+        io.emit('menu_updated_broadcast'); // Beritahu semua layar untuk update
+    });
+
+    // --- FITUR HAPUS SELURUH STAND ---
+    // (Akan menghapus semua menu yang terhubung dengan nama stand tersebut)
+    socket.on('admin_delete_stand', async (standName) => {
+        await Menu.deleteMany({ stand: standName });
+        io.emit('menu_updated_broadcast');
+    });
+
     // --- FITUR LOGIN DB ---
     socket.on('attempt_staff_login', async (data) => {
         const staff = await Staff.findOne({ role: data.role, password: data.password });
@@ -203,6 +216,36 @@ function calculateStats() {
     });
     return stats;
 }
+
+const ExcelJS = require('exceljs');
+
+app.get('/download-report', async (req, res) => {
+    try {
+        const orders = await Order.find({ status: 'PAID' });
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Laporan Penjualan');
+
+        sheet.columns = [
+            { header: 'ID Order', key: 'id', width: 15 },
+            { header: 'Waktu', key: 'time', width: 15 },
+            { header: 'Pelanggan', key: 'user', width: 20 },
+            { header: 'Meja', key: 'table', width: 10 },
+            { header: 'Total Bayar', key: 'total', width: 15 },
+        ];
+
+        orders.forEach(o => {
+            sheet.addRow({ id: o.id, time: o.time, user: o.user, table: o.table, total: o.total });
+        });
+
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=Laporan_POS_KedaiKopi.xlsx');
+
+        await workbook.xlsx.write(res);
+        res.end();
+    } catch (err) {
+        res.status(500).send("Gagal mengunduh laporan");
+    }
+});
 
 http.listen(PORT, () => {
     console.log(`POS System Secure & Online on port ${PORT}`);
