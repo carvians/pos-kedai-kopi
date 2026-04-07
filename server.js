@@ -1,10 +1,15 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
-
+const mongoose = require('mongoose');
 const PORT = process.env.PORT || 3000; 
+
+mongoose.connect(process.env.MONGO_URL)
+    .then(() => console.log('✅ Database MongoDB Berhasil Terhubung!'))
+    .catch((err) => console.log('❌ Gagal terhubung ke MongoDB:', err));
 
 // --- FIX ROUTING UNTUK RAILWAY ---
 app.use(express.static(path.join(__dirname, '/')));
