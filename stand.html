@@ -6,10 +6,8 @@
     <title>Kitchen Monitor | POS Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-    // --- SCRIPT SATPAM ---
     const isStaffLoggedIn = sessionStorage.getItem('is_logged_in');
     const staffRole = sessionStorage.getItem('staff_role');
-
     if (!isStaffLoggedIn || !staffRole) {
         window.location.replace("staff-login.html");
     }
@@ -20,7 +18,6 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0c0c0e; color: #e7e5e4; }
         .glass-panel { background: rgba(24, 24, 27, 0.7); backdrop-filter: blur(20px); }
         .neon-shadow { box-shadow: 0 0 40px rgba(234, 88, 12, 0.15); }
-        /* Kustomisasi scrollbar gelap */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #121215; }
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
@@ -35,13 +32,8 @@
             <h2 class="text-3xl font-black tracking-tight text-white mb-2">Pilih Station</h2>
             <p class="text-stone-400 text-xs font-bold mb-8 uppercase tracking-widest">Tentukan monitor untuk dapur:</p>
             
-            <div class="space-y-4">
-                <button onclick="selectStand('O-Coffee Stand')" class="w-full bg-[#18181b] border border-stone-700 hover:border-[#d4b895] hover:bg-[#27272a] text-white p-5 rounded-2xl font-black text-lg transition-all active:scale-95 flex items-center justify-center gap-3 shadow-lg">
-                    <span class="text-2xl">☕</span> O-Coffee Stand
-                </button>
-                <button onclick="selectStand('Dapur Mamah')" class="w-full bg-[#18181b] border border-stone-700 hover:border-orange-500 hover:bg-[#27272a] text-white p-5 rounded-2xl font-black text-lg transition-all active:scale-95 flex items-center justify-center gap-3 shadow-lg">
-                    <span class="text-2xl">🍳</span> Dapur Mamah
-                </button>
+            <div id="stand-buttons-container" class="space-y-4">
+                <p class="text-stone-500 animate-pulse text-sm text-center">Memuat daftar stand dari server...</p>
             </div>
         </div>
     </div>
@@ -75,7 +67,29 @@
         const socket = io();
         let MY_STAND = ""; 
 
-        // FUNGSI MEMILIH STAND
+        // --- TARIK DAFTAR STAND OTOMATIS DARI DATABASE ---
+        socket.emit('get_all_menu');
+        
+        socket.on('receive_all_menu', (menus) => {
+            const uniqueStands = [...new Set(menus.map(m => m.stand))];
+            const container = document.getElementById('stand-buttons-container');
+            container.innerHTML = ""; 
+            
+            const emojis = ['🍳', '☕', '🥤', '🍕', '🍜', '🍰'];
+            
+            uniqueStands.forEach((stand, index) => {
+                const emoji = emojis[index % emojis.length]; 
+                
+                container.innerHTML += `
+                    <button onclick="selectStand('${stand}')" class="w-full bg-[#18181b] border border-stone-700 hover:border-[#d4b895] hover:bg-[#27272a] text-white p-5 rounded-2xl font-black text-lg transition-all active:scale-95 flex items-center justify-center gap-3 shadow-lg">
+                        <span class="text-2xl">${emoji}</span> ${stand}
+                    </button>
+                `;
+            });
+        });
+
+        socket.on('menu_updated_broadcast', () => socket.emit('get_all_menu'));
+
         function selectStand(standName) {
             MY_STAND = standName;
             document.getElementById('setup-stand').style.opacity = '0';
@@ -87,7 +101,6 @@
             socket.emit('request_stand_orders', MY_STAND);
         }
 
-        // MERAKIT KARTU PESANAN
         function renderOrderCard(order) {
             const myItems = order.items.filter(i => i.stand === MY_STAND);
             if(myItems.length === 0) return; 
@@ -96,7 +109,6 @@
 
             const card = document.createElement('div');
             card.id = `stand-order-${order.id}`;
-            // Desain Kartu Premium Dark
             card.className = "bg-[#18181b] border border-stone-800 p-7 rounded-[2.5rem] shadow-2xl flex flex-col justify-between animate-in fade-in zoom-in slide-in-from-bottom-8 duration-500 relative overflow-hidden group hover:border-stone-700 transition-colors";
             
             card.innerHTML = `
@@ -140,18 +152,15 @@
             document.getElementById('kitchen-grid').appendChild(card);
         }
 
-        // FUNGSI SELESAI MASAK
         function finishOrder(orderId) {
             socket.emit('mark_stand_completed', { orderId: orderId, stand: MY_STAND });
             
             const card = document.getElementById(`stand-order-${orderId}`);
-            // Animasi menghilang yang mulus
             card.style.transform = 'scale(0.9)';
             card.style.opacity = '0';
             setTimeout(() => card.remove(), 300);
         }
 
-        // LISTENER DARI SERVER
         socket.on('order_paid_broadcast', (order) => {
             renderOrderCard(order);
             const myItems = order.items.filter(i => i.stand === MY_STAND);
@@ -162,7 +171,6 @@
             ordersList.forEach(order => renderOrderCard(order));
         });
 
-        // FUNGSI LOGOUT
         function logout() {
             sessionStorage.clear();
             window.location.replace("staff-login.html");

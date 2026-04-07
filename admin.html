@@ -102,7 +102,13 @@
                                 <option value="minuman">☕ Minuman</option>
                                 <option value="snacks">🍟 Snacks</option>
                             </select>
-                            <input type="text" id="m-stand" placeholder="Nama Stand" class="w-1/2 p-4 bg-white rounded-2xl outline-none border border-stone-200 focus:border-[#634832] focus:ring-4 focus:ring-[#634832]/10 transition-all font-bold text-stone-700 shadow-sm">
+                            
+                            <div class="w-1/2 flex gap-2">
+                                <select id="m-stand-select" onchange="checkNewStand(this.value)" class="w-full p-4 bg-white rounded-2xl outline-none border border-stone-200 focus:border-[#634832] focus:ring-4 focus:ring-[#634832]/10 transition-all font-bold text-stone-700 shadow-sm">
+                                    <option value="" disabled selected>Pilih Stand...</option>
+                                </select>
+                                <input type="text" id="m-stand-new" placeholder="Ketik Stand Baru..." class="hidden w-full p-4 bg-white rounded-2xl outline-none border border-stone-200 focus:border-[#634832] transition-all font-bold text-stone-700 shadow-sm">
+                            </div>
                         </div>
                         
                         <input type="text" id="m-img" placeholder="Link Gambar (URL)" class="w-full p-4 bg-white rounded-2xl outline-none border border-stone-200 focus:border-[#634832] focus:ring-4 focus:ring-[#634832]/10 transition-all font-bold text-stone-700 shadow-sm text-xs">
@@ -140,12 +146,39 @@
         const socket = io();
         socket.emit('get_admin_stats');
 
+        // --- MENGAMBIL DAFTAR STAND DARI DATABASE ---
+        socket.emit('get_all_menu');
+        
+        socket.on('receive_all_menu', (menus) => {
+            const uniqueStands = [...new Set(menus.map(m => m.stand))];
+            const select = document.getElementById('m-stand-select');
+            
+            select.innerHTML = '<option value="" disabled selected>Pilih Stand...</option>';
+            uniqueStands.forEach(stand => {
+                select.innerHTML += `<option value="${stand}">${stand}</option>`;
+            });
+            select.innerHTML += `<option value="NEW" class="text-orange-600 font-bold">➕ Buat Stand Baru...</option>`;
+        });
+
+        socket.on('menu_updated_broadcast', () => socket.emit('get_all_menu'));
+
+        function checkNewStand(value) {
+            const newStandInput = document.getElementById('m-stand-new');
+            const selectDropdown = document.getElementById('m-stand-select');
+            
+            if (value === "NEW") {
+                newStandInput.classList.remove('hidden');
+                selectDropdown.classList.add('w-1/3');
+            } else {
+                newStandInput.classList.add('hidden');
+                selectDropdown.classList.remove('w-1/3');
+            }
+        }
+
         socket.on('admin_update', (stats) => {
-            // Update Angka dengan animasi lembut
             document.getElementById('total-sales').innerText = 'Rp' + stats.totalSales.toLocaleString();
             document.getElementById('paid-orders').innerHTML = `${stats.paidOrders} <span class="text-lg text-stone-400 font-bold tracking-normal">Order</span>`;
 
-            // Render Stand Revenue
             const standList = document.getElementById('stand-list');
             standList.innerHTML = "";
             if (Object.keys(stats.standRevenue).length === 0) {
@@ -159,7 +192,6 @@
                     </div>`;
             }
 
-            // Render Top Items
             const itemList = document.getElementById('item-list');
             itemList.innerHTML = "";
             if (Object.keys(stats.topItems).length === 0) {
@@ -174,13 +206,17 @@
             }
         });
 
-        // FUNGSI ADMIN DATABASE
         function addNewMenu() {
+            let finalStand = document.getElementById('m-stand-select').value;
+            if (finalStand === "NEW") {
+                finalStand = document.getElementById('m-stand-new').value;
+            }
+
             const data = {
                 name: document.getElementById('m-name').value,
                 price: parseInt(document.getElementById('m-price').value),
                 fee: parseInt(document.getElementById('m-fee').value),
-                stand: document.getElementById('m-stand').value,
+                stand: finalStand,
                 img: document.getElementById('m-img').value || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=200", 
                 cat: document.getElementById('m-cat').value
             };
@@ -192,12 +228,13 @@
             socket.emit('admin_add_menu', data);
             alert("✅ Menu berhasil ditambahkan ke Database!");
             
-            // Kosongkan form setelah input
             document.getElementById('m-name').value = '';
             document.getElementById('m-price').value = '';
             document.getElementById('m-fee').value = '';
-            document.getElementById('m-stand').value = '';
+            document.getElementById('m-stand-new').value = '';
             document.getElementById('m-img').value = '';
+            document.getElementById('m-stand-select').value = '';
+            checkNewStand(''); 
         }
 
         function updatePass() {
