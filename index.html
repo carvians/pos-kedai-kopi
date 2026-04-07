@@ -13,10 +13,8 @@
         .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); }
         .active-tab { background: #634832 !important; color: white !important; transform: scale(1.05); }
         .active-stand { background: #634832 !important; color: white !important; border-color: #634832 !important; }
-        
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
         .stand-badge {
             background: #f3f0ec;
             color: #634832;
@@ -29,8 +27,6 @@
             letter-spacing: 0.05em;
             text-transform: uppercase;
         }
-
-        /* Animasi Modal */
         #cart-modal { transition: opacity 0.3s ease; }
         .modal-content { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     </style>
@@ -51,12 +47,10 @@
 
     <div class="px-6 mb-8">
         <p class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3 ml-1">Pilih Berdasarkan Stand</p>
-        <div id="stand-list" class="flex gap-2 overflow-x-auto no-scrollbar">
-            </div>
+        <div id="stand-list" class="flex gap-2 overflow-x-auto no-scrollbar"></div>
     </div>
 
-    <main id="menu-area" class="px-6 grid gap-6">
-    </main>
+    <main id="menu-area" class="px-6 grid gap-6"></main>
 
     <div id="under-construction" class="hidden flex flex-col items-center py-20 opacity-80 text-center">
         <div class="text-7xl animate-bounce mb-4 text-stone-300">🏗️</div>
@@ -86,8 +80,7 @@
                 <button onclick="toggleModal()" class="text-stone-400 text-sm font-bold">Tutup</button>
             </div>
             
-            <div id="cart-items-list" class="max-h-64 overflow-y-auto space-y-3 mb-6 no-scrollbar">
-                </div>
+            <div id="cart-items-list" class="max-h-64 overflow-y-auto space-y-3 mb-6 no-scrollbar"></div>
 
             <div class="border-t border-stone-100 pt-5 mb-8 space-y-2">
                 <div class="flex justify-between text-stone-400 text-xs font-bold uppercase tracking-wider">
@@ -124,13 +117,20 @@
         }
 
         let cart = [];
+        let menuData = []; // Data sekarang dinamis dari DB
+
+        // --- MINTA DATA DARI DATABASE ---
+        socket.emit('get_all_menu');
         
-        const menuData = [
-            { id:1, name: "Iced Latte", price: 25000, fee: 2000, cat: "minuman", img: "https://images.unsplash.com/photo-1541167760496-162955ed8a9f?w=200", stand: "O-Coffee Stand" },
-            { id:2, name: "Nasi Goreng Special", price: 30000, fee: 3000, cat: "makanan", img: "https://images.unsplash.com/photo-1512058560566-427a1bd5a560?w=200", stand: "Dapur Mamah" },
-            { id:3, name: "Es Teh Manis", price: 5000, fee: 1000, cat: "minuman", img: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=200", stand: "O-Coffee Stand" },
-            { id:4, name: "Ayam Goreng", price: 22000, fee: 2000, cat: "makanan", img: "https://images.unsplash.com/photo-1562967914-608f82629710?w=200", stand: "Dapur Mamah" }
-        ];
+        socket.on('receive_all_menu', (data) => {
+            menuData = data;
+            initStandFilters();
+            renderMenu('makanan'); // Munculkan makanan saat data tiba
+        });
+
+        socket.on('menu_updated_broadcast', () => {
+            socket.emit('get_all_menu'); // Update UI otomatis kalau admin ubah menu
+        });
 
         function initStandFilters() {
             const standList = document.getElementById('stand-list');
@@ -228,7 +228,6 @@
 
             cart.forEach((item, index) => {
                 const rowTotal = item.price * item.qty;
-                // Pastikan nilai note tidak undefined
                 const noteVal = item.note ? item.note : ""; 
 
                 list.innerHTML += `
@@ -259,7 +258,6 @@
             document.getElementById('modal-total-price').innerText = `Rp${(subtotal + ppn).toLocaleString()}`;
         }
 
-        // --- TAMBAH 2 FUNGSI BARU INI ---
         function addQty(index) {
             cart[index].qty += 1;
             updateTotalBar();
@@ -267,7 +265,7 @@
         }
 
         function updateNote(index, value) {
-            cart[index].note = value; // Simpan teks catatan ke dalam array
+            cart[index].note = value; 
         }
 
         function reduceFromCart(index) {
@@ -298,11 +296,8 @@
             sessionStorage.setItem('last_order_ppn', ppn);
             sessionStorage.setItem('last_order_total', grandTotal);
 
-            window.location.href = "checkout-pending.html";
+            setTimeout(() => { window.location.href = "checkout-pending.html"; }, 500);
         }
-
-        initStandFilters();
-        renderMenu('makanan');
     </script>
 </body>
 </html>

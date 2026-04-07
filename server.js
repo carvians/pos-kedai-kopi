@@ -8,67 +8,126 @@ const mongoose = require('mongoose');
 const PORT = process.env.PORT || 3000; 
 
 mongoose.connect(process.env.MONGO_URL)
-    .then(() => console.log('✅ Database MongoDB Berhasil Terhubung!'))
+    .then(() => {
+        console.log('✅ Database MongoDB Berhasil Terhubung!');
+        initDatabase();
+    })
     .catch((err) => console.log('❌ Gagal terhubung ke MongoDB:', err));
 
-// --- FIX ROUTING UNTUK RAILWAY ---
+const menuSchema = new mongoose.Schema({
+    name: String,
+    price: Number,
+    fee: Number,
+    cat: String,
+    img: String,
+    stand: String
+});
+const Menu = mongoose.model('Menu', menuSchema);
+
+const orderSchema = new mongoose.Schema({
+    id: String,
+    user: String,
+    table: String,
+    items: Array,
+    subtotal: Number,
+    ppn: Number,
+    total: Number,
+    status: String,
+    time: String,
+    completedStands: Array
+});
+const Order = mongoose.model('Order', orderSchema);
+
+const staffSchema = new mongoose.Schema({
+    role: String,
+    password: String
+});
+const Staff = mongoose.model('Staff', staffSchema);
+
+let orders = []; // RAM Backup agar real-time tetap ngebut
+
+async function initDatabase() {
+    const menuCount = await Menu.countDocuments();
+    if (menuCount === 0) {
+        console.log('📦 Memasukkan data menu default ke database...');
+        await Menu.insertMany([
+            { name: "Iced Latte", price: 25000, fee: 2000, cat: "minuman", img: "https://images.unsplash.com/photo-1541167760496-162955ed8a9f?w=200", stand: "O-Coffee Stand" },
+            { name: "Nasi Goreng Special", price: 30000, fee: 3000, cat: "makanan", img: "https://images.unsplash.com/photo-1512058560566-427a1bd5a560?w=200", stand: "Dapur Mamah" },
+            { name: "Es Teh Manis", price: 5000, fee: 1000, cat: "minuman", img: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=200", stand: "O-Coffee Stand" },
+            { name: "Ayam Goreng", price: 22000, fee: 2000, cat: "makanan", img: "https://images.unsplash.com/photo-1562967914-608f82629710?w=200", stand: "Dapur Mamah" }
+        ]);
+    }
+
+    const staffCount = await Staff.countDocuments();
+    if (staffCount === 0) {
+        console.log('🔐 Membuat akun staff default...');
+        await Staff.insertMany([
+            { role: "admin", password: "admin123" },
+            { role: "kasir", password: "kasir123" },
+            { role: "stand", password: "stand123" }
+        ]);
+    }
+
+    // Tarik rekapan pesanan dari database ke memori (RAM) saat server nyala
+    orders = await Order.find();
+    console.log('🚀 Semua data di MongoDB siap digunakan!');
+}
+
 app.use(express.static(path.join(__dirname, '/')));
 app.use(express.json());
 
-// Jalur Utama (Wajib mengarah ke login.html)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'login.html'));
 });
 
-// Jalur Pengaman: Jika user akses namafile.html secara manual
 app.get('/:page.html', (req, res) => {
     res.sendFile(path.join(__dirname, req.params.page + '.html'));
 });
 
-// DATA MENU PUSAT
-const officialMenu = [
-    { id:1, name: "Iced Latte", price: 25000, fee: 2000, stand: "O-Coffee Stand" },
-    { id:2, name: "Nasi Goreng Special", price: 30000, fee: 3000, stand: "Dapur Mamah" },
-    { id:3, name: "Es Teh Manis", price: 5000, fee: 1000, stand: "O-Coffee Stand" },
-    { id:4, name: "Ayam Goreng", price: 22000, fee: 2000, stand: "Dapur Mamah" }
-];
-
-let orders = []; 
-
-// --- DATA PASSWORD STAFF ---
-const staffCredentials = {
-    admin: "admin123", // Password untuk Admin
-    kasir: "kasir123", // Password untuk Kasir
-    stand: "stand123"  // Password untuk Stand
-};
-
 io.on('connection', (socket) => {
     
-    // --- FITUR LOGIN STAFF ---
-    socket.on('attempt_staff_login', (data) => {
-        // Cek apakah password yang dimasukkan cocok dengan database server
-        if (staffCredentials[data.role] === data.password) {
+    // --- FITUR LOGIN DB ---
+    socket.on('attempt_staff_login', async (data) => {
+        const staff = await Staff.findOne({ role: data.role, password: data.password });
+        if (staff) {
             socket.emit('staff_login_result', { success: true, role: data.role });
         } else {
             socket.emit('staff_login_result', { success: false, message: "Password salah!" });
         }
     }); 
-    socket.on('submit_order', (clientData) => {
+
+    // --- MENU DINAMIS & CRUD ADMIN ---
+    socket.on('get_all_menu', async () => {
+        const menus = await Menu.find();
+        socket.emit('receive_all_menu', menus);
+    });
+
+    socket.on('admin_add_menu', async (menuData) => {
+        await new Menu(menuData).save();
+        io.emit('menu_updated_broadcast');
+    });
+
+    socket.on('admin_update_password', async (data) => {
+        await Staff.findOneAndUpdate({ role: data.role }, { password: data.password });
+        socket.emit('update_status', { success: true, message: "Password berhasil diganti!" });
+    });
+
+    // --- FITUR ORDER (SIMPAN KE DB) ---
+    socket.on('submit_order', async (clientData) => {
+        const dbMenu = await Menu.find(); // Validasi pakai harga terbaru dari DB
         let validatedItems = [];
         let subtotal = 0;
 
         clientData.items.forEach(clientItem => {
-            const original = officialMenu.find(m => m.name === clientItem.name);
+            const original = dbMenu.find(m => m.name === clientItem.name);
             if (original) {
-                // Ambil qty dari pesanan HP (default 1 jika kosong)
                 const qty = clientItem.qty || 1; 
-                // Kalikan dengan harga total item
                 const itemTotal = (original.price + original.fee) * qty; 
                 const noteText = clientItem.note || "";
 
                 validatedItems.push({
                     name: original.name,
-                    qty: qty, // Simpan qty ke database
+                    qty: qty, 
                     total: itemTotal,
                     stand: original.stand,
                     note: noteText
@@ -77,7 +136,6 @@ io.on('connection', (socket) => {
             }
         });
 
-        // --- PAJAK SUDAH FIX 10% ---
         const ppn = subtotal * 0.10; 
         const grandTotal = subtotal + ppn;
 
@@ -94,15 +152,18 @@ io.on('connection', (socket) => {
             completedStands: []
         };
 
-        orders.push(finalOrder);
+        orders.push(finalOrder); // Simpan di RAM
+        await new Order(finalOrder).save(); // Simpan permanen ke MongoDB
+        
         io.emit('new_order_to_cashier', finalOrder);
         io.emit('admin_update', calculateStats());
     });
 
-    socket.on('confirm_payment', (orderId) => {
+    socket.on('confirm_payment', async (orderId) => {
         let order = orders.find(o => o.id === orderId);
         if (order) {
             order.status = 'PAID';
+            await Order.findOneAndUpdate({ id: orderId }, { status: 'PAID' }); // Update di DB
             io.emit('order_paid_broadcast', order);
             io.emit('admin_update', calculateStats());
         }
@@ -111,17 +172,20 @@ io.on('connection', (socket) => {
     socket.on('request_stand_orders', (standName) => {
         const pendingOrders = orders.filter(o => 
             o.status === 'PAID' && 
-            !o.completedStands.includes(standName) && // Belum diselesaikan oleh stand ini
-            o.items.some(i => i.stand === standName)  // Pesanan punya menu dari stand ini
+            !o.completedStands.includes(standName) && 
+            o.items.some(i => i.stand === standName)  
         );
         socket.emit('load_stand_orders', pendingOrders);
     });
-    socket.on('mark_stand_completed', (data) => {
+
+    socket.on('mark_stand_completed', async (data) => {
         let order = orders.find(o => o.id === data.orderId);
         if (order && !order.completedStands.includes(data.stand)) {
-            order.completedStands.push(data.stand); // Coret pesanan dari papan
+            order.completedStands.push(data.stand); 
+            await Order.findOneAndUpdate({ id: data.orderId }, { $push: { completedStands: data.stand } }); // Simpan ke DB
         }
-    }),
+    });
+
     socket.on('get_admin_stats', () => {
         socket.emit('admin_update', calculateStats());
     });
@@ -134,7 +198,7 @@ function calculateStats() {
         stats.paidOrders++;
         o.items.forEach(item => {
             stats.standRevenue[item.stand] = (stats.standRevenue[item.stand] || 0) + item.total;
-            stats.topItems[item.name] = (stats.topItems[item.name] || 0) + item.qty; // Update admin stats sesuai qty
+            stats.topItems[item.name] = (stats.topItems[item.name] || 0) + item.qty; 
         });
     });
     return stats;
