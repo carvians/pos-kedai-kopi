@@ -104,6 +104,12 @@
     </div>
 
     <script>
+        // --- LOGIKA PENGAMAN: Jika sudah lunas, tendang balik ke login ---
+        if (sessionStorage.getItem('payment_status') === 'done') {
+            sessionStorage.clear();
+            window.location.href = "login.html";
+        }
+
         const socket = io();
         
         const customerName = sessionStorage.getItem('customer_name');
@@ -117,19 +123,18 @@
         }
 
         let cart = [];
-        let menuData = []; // Data sekarang dinamis dari DB
+        let menuData = []; 
 
-        // --- MINTA DATA DARI DATABASE ---
         socket.emit('get_all_menu');
         
         socket.on('receive_all_menu', (data) => {
             menuData = data;
             initStandFilters();
-            renderMenu('makanan'); // Munculkan makanan saat data tiba
+            renderMenu('makanan'); 
         });
 
         socket.on('menu_updated_broadcast', () => {
-            socket.emit('get_all_menu'); // Update UI otomatis kalau admin ubah menu
+            socket.emit('get_all_menu'); 
         });
 
         function initStandFilters() {
