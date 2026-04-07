@@ -3,180 +3,196 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kasir Pusat | POS Hub</title>
-    
+    <title>Kasir | POS Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fdfaf7; }
+        
+        /* --- KEAJAIBAN CSS UNTUK PRINTER THERMAL --- */
+        @media print {
+            body * { visibility: hidden; } /* Sembunyikan semua UI Web */
+            #print-area, #print-area * { visibility: visible; } /* Tampilkan HANYA struk */
+            #print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 58mm; /* Lebar standar kertas kasir thermal */
+                padding: 0;
+                margin: 0;
+                font-family: 'Courier New', Courier, monospace; /* Font khas struk */
+                color: black;
+            }
+            @page { margin: 0; } /* Hilangkan margin putih bawaan browser */
+        }
+    </style>
     <script>
-    // --- SCRIPT SATPAM (HARUS PALING ATAS) ---
+    // --- SCRIPT SATPAM ---
     const isStaffLoggedIn = sessionStorage.getItem('is_logged_in');
     const staffRole = sessionStorage.getItem('staff_role');
-
-    // Jika belum login, tendang ke halaman login
     if (!isStaffLoggedIn || !staffRole) {
         window.location.replace("staff-login.html");
     }
-    // (Opsional) Jika kasir nyasar ke halaman admin, tendang juga
-    // if (staffRole !== 'admin') window.location.replace("staff-login.html");
     </script>
-    <script src="/socket.io/socket.io.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
-    
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fdfaf7; }
-        /* Sembunyikan scrollbar tapi tetap bisa di-scroll */
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        @media print {
-            body * { visibility: hidden; }
-            #print-area, #print-area * { visibility: visible; }
-            #print-area { position: absolute; left: 0; top: 0; width: 58mm; font-family: 'Courier New', monospace; color: black; }
-        }
-    </style>
 </head>
 <body class="p-6 md:p-10 text-stone-800">
 
-    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 border-b border-stone-200 pb-6">
+    <header class="flex justify-between items-end mb-10 border-b border-stone-200 pb-6">
         <div>
-            <h1 class="text-3xl md:text-4xl font-black tracking-tight text-[#3d2b1f]">KASIR PUSAT 💸</h1>
-            <p class="text-xs font-bold text-stone-500 uppercase tracking-widest mt-2">Sistem Pembayaran Terpusat</p>
+            <h1 class="text-4xl font-black tracking-tight text-[#3d2b1f]">KASIR PUSAT 💳</h1>
+            <p class="text-stone-500 font-bold mt-1">Menunggu pembayaran pelanggan...</p>
         </div>
-        <div class="flex gap-4 items-center">
-            <div class="bg-white px-6 py-3 rounded-2xl shadow-sm font-bold text-stone-600 border border-stone-200 flex items-center gap-2">
-                <span class="text-[10px] uppercase tracking-widest text-stone-400">Kas Masuk:</span> 
-                <span id="revenue" class="text-green-600 font-black text-xl">Rp0</span>
-            </div>
-            <div class="bg-green-100 text-green-600 px-4 py-3 rounded-2xl text-xs font-black border border-green-200 animate-pulse tracking-widest shadow-sm">
-                LIVE
-            </div>
+        <div class="text-right">
+            <p class="text-[10px] font-bold uppercase tracking-widest text-stone-400">Pemasukan Shift Ini</p>
+            <h2 id="revenue" class="text-3xl font-black text-green-600">Rp0</h2>
         </div>
+    </header>
+
+    <div id="empty-state" class="flex flex-col items-center justify-center py-32 opacity-60">
+        <div class="text-7xl mb-6 grayscale opacity-50">🛒</div>
+        <p class="font-bold text-xl">Belum ada antrean pesanan.</p>
+        <p class="text-sm text-stone-400">Pesanan dari HP pelanggan akan muncul di sini.</p>
     </div>
 
-    <div id="empty-state" class="flex flex-col items-center justify-center py-20 opacity-40 transition-all duration-500">
-        <div class="text-7xl mb-4">😴</div>
-        <h3 class="font-bold text-2xl text-stone-800">Antrean Kosong</h3>
-        <p class="text-sm font-bold text-stone-500 mt-2">Kasir bisa istirahat atau ngopi dulu.</p>
-    </div>
+    <main id="cashier-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max"></main>
 
-    <div id="queue-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <div id="print-area" class="hidden absolute top-0 left-0 bg-white text-black p-4 text-[12px] leading-snug w-[58mm]">
         </div>
 
     <script>
         const socket = io();
         let totalRevenue = 0;
         let orderCount = 0;
+        
+        // Brankas sementara untuk menyimpan data pesanan agar bisa dicetak
+        let ordersMemory = {}; 
 
-        // 1. MENDENGARKAN PESANAN BARU DARI SERVER
         socket.on('new_order_to_cashier', (order) => {
-            // Sembunyikan layar kosong
-            const emptyState = document.getElementById('empty-state');
-            if(emptyState) emptyState.style.display = 'none';
-
-            const container = document.getElementById('queue-container');
-            const card = document.createElement('div');
-            
-            // Beri ID khusus agar gampang dihapus nanti
-            card.id = `order-${order.id}`;
-            card.className = "bg-white p-6 rounded-[2rem] shadow-xl border border-stone-100 flex flex-col justify-between transition-all duration-300 animate-in fade-in slide-in-from-bottom-4";
-            
-            // Render rincian makanan
-            let itemsList = order.items.map(i => `
-                <div class="flex justify-between text-sm mb-3 border-b border-stone-50 pb-3">
-                    <div>
-                        <span class="font-bold text-stone-800">${i.name}</span>
-                        <div class="text-[9px] text-stone-400 font-bold uppercase tracking-widest mt-1">${i.stand}</div>
-                    </div>
-                    <span class="font-bold text-stone-500">Rp${i.total.toLocaleString()}</span>
-                </div>
-            `).join('');
-
-            // Bangun bentuk kartu kasir
-            card.innerHTML = `
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="bg-stone-100 text-stone-500 px-3 py-1 rounded-lg text-[10px] font-black tracking-widest border border-stone-200">#${order.id}</span>
-                        <span class="bg-[#3d2b1f] text-white px-3 py-1 rounded-lg text-[10px] font-black tracking-widest shadow-md">MEJA ${order.table}</span>
-                    </div>
-                    <h3 class="text-2xl font-black mb-1 capitalize text-stone-800">${order.user}</h3>
-                    <p class="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-6 animate-pulse">Menunggu Pembayaran...</p>
-                    
-                    <div class="mb-6 h-32 overflow-y-auto no-scrollbar pr-2">
-                        ${itemsList}
-                    </div>
-                </div>
-
-                <div class="mt-4 pt-4 border-t border-stone-200">
-                    <div class="flex justify-between items-end mb-4">
-                        <span class="text-[10px] font-black text-stone-400 tracking-widest">TOTAL TAGIHAN</span>
-                        <span class="text-3xl font-black text-[#634832]">Rp${order.total.toLocaleString()}</span>
-                    </div>
-                    <button onclick="payOrder('${order.id}', ${order.total}, this)" class="w-full bg-[#634832] hover:bg-[#3d2b1f] text-white py-5 rounded-2xl font-black text-sm tracking-widest transition-all active:scale-95 shadow-xl">
-                        LUNAS & TERUSKAN KE DAPUR
-                    </button>
-                </div>
-            `;
-            
-            // Masukkan ke posisi paling atas/depan
-            container.prepend(card);
+            document.getElementById('empty-state').style.display = 'none';
             orderCount++;
             
-            // Bunyikan lonceng pesanan baru masuk
-            new Audio('https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3').play();
-        });
-        
-        function printReceipt(orderId) {
-            // Cari data order dari layar (atau bisa kirim dari server)
-            const card = document.getElementById(`order-${orderId}`);
-            const name = card.querySelector('h3').innerText;
-            const table = card.querySelector('.bg-[#3d2b1f]').innerText;
-    
-            // Buat elemen print sementara
-            const printWindow = document.createElement('div');
-            printWindow.id = "print-area";
-            printWindow.innerHTML = `
-                <div style="text-align:center">
-                    <h3>KEDAI KOPI HUB</h3>
-                    <p>Order: ${orderId}</p>
-                    <hr>
-                </div>
-                <p>${table} - ${name}</p>
-                <hr>
-                ${card.querySelector('.max-h-40').innerHTML}
-                <hr>
-                <h4 style="text-align:right">${card.querySelector('.text-3xl').innerText}</h4>
-                <p style="text-align:center">Terima Kasih!</p>
-            `;
-            document.body.appendChild(printWindow);
-            window.print();
-            document.body.removeChild(printWindow);
-        }
+            // Simpan data order ke memori kasir berdasarkan ID-nya
+            ordersMemory[order.id] = order; 
 
-        // 2. FUNGSI SAAT TOMBOL LUNAS DITEKAN
+            const grid = document.getElementById('cashier-grid');
+            grid.innerHTML += `
+                <div id="order-${order.id}" class="bg-white p-6 rounded-[2rem] shadow-xl border border-stone-100 flex flex-col justify-between transition-all animate-in fade-in zoom-in duration-300">
+                    <div>
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="text-2xl font-black text-stone-800">#${order.id}</h3>
+                                <p class="text-[11px] font-bold text-stone-400 uppercase tracking-widest mt-1">${order.user}</p>
+                            </div>
+                            <span class="bg-[#3d2b1f] text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-md">Meja ${order.table}</span>
+                        </div>
+                        
+                        <ul class="space-y-3 mb-6 border-y border-stone-100 py-4 max-h-40 overflow-y-auto">
+                            ${order.items.map(i => `
+                                <li class="flex justify-between text-sm">
+                                    <div class="flex-1 pr-2">
+                                        <span class="font-black text-stone-800 mr-1">${i.qty}x</span> 
+                                        <span class="font-bold text-stone-600">${i.name}</span>
+                                    </div>
+                                    <span class="font-bold text-stone-800">Rp${i.total.toLocaleString()}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between text-lg font-black text-orange-600 mb-5">
+                            <span>TOTAL</span>
+                            <span>Rp${order.total.toLocaleString()}</span>
+                        </div>
+                        <button onclick="payOrder('${order.id}', ${order.total}, this)" class="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-black tracking-widest text-xs transition-all active:scale-95 shadow-[0_10px_20px_-10px_rgba(22,163,74,0.5)]">
+                            💰 TERIMA UANG & CETAK STRUK
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Bunyi notifikasi ada orderan masuk
+            new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3').play();
+        });
+
         function payOrder(id, total, btnElement) {
-            // Munculkan popup konfirmasi awal
-            if(confirm(`Sudah terima uang Rp${total.toLocaleString()} dari pesanan ini?`)) {
+            // Tanya dulu ke kasir
+            if(confirm(`Uang Rp${total.toLocaleString()} dari pesanan #${id} sudah diterima?`)) {
                 
                 socket.emit('confirm_payment', id);
                 
                 totalRevenue += total;
                 document.getElementById('revenue').innerText = 'Rp' + totalRevenue.toLocaleString();
                 
+                // --- PANGGIL FUNGSI CETAK STRUK ---
+                printReceipt(ordersMemory[id]);
+
                 const card = btnElement.closest(`div[id^="order-"]`);
                 card.classList.add('scale-75', 'opacity-0'); 
-                
                 setTimeout(() => {
                     card.remove();
                     orderCount--;
                     if(orderCount === 0) document.getElementById('empty-state').style.display = 'flex';
                 }, 300);
 
-                // Bunyi Mesin Kasir (Cha-Ching!)
                 new Audio('https://assets.mixkit.co/sfx/preview/mixkit-cash-register-purchase-87.mp3').play();
-                
-                // --- FIX: Tambahkan Pop-up Notifikasi Sukses di sini ---
-                setTimeout(() => {
-                    alert(`✅ PEMBAYARAN BERHASIL!\nPesanan #${id} telah otomatis diteruskan ke layar dapur.`);
-                }, 100); 
             }
+        }
+
+        // FUNGSI KHUSUS MERAKIT & MENCETAK STRUK
+        function printReceipt(order) {
+            const printArea = document.getElementById('print-area');
+            
+            // 1. Susun rincian menu
+            let itemsHtml = order.items.map(i => `
+                <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                    <span style="width: 65%; text-align: left;">${i.qty}x ${i.name}</span>
+                    <span style="width: 35%; text-align: right;">${i.total.toLocaleString()}</span>
+                </div>
+            `).join('');
+
+            // 2. Suntikkan HTML ke dalam brankas print
+            printArea.innerHTML = `
+                <div style="text-align:center; margin-bottom:10px; border-bottom:1px dashed black; padding-bottom:10px;">
+                    <h2 style="margin:0; font-size:16px; font-weight:bold;">POS KEDAI KOPI</h2>
+                    <p style="margin:2px 0 0 0; font-size:10px;">Jl. Mahasiswa No. 123</p>
+                </div>
+                
+                <div style="margin-bottom:10px; font-size:11px;">
+                    <p style="margin:0;">No   : ${order.id}</p>
+                    <p style="margin:0;">Meja : ${order.table}</p>
+                    <p style="margin:0;">Nama : ${order.user}</p>
+                    <p style="margin:0;">Waktu: ${order.time}</p>
+                </div>
+                
+                <div style="border-top:1px dashed black; border-bottom:1px dashed black; padding: 5px 0; margin-bottom:10px;">
+                    ${itemsHtml}
+                </div>
+                
+                <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:11px;">
+                    <span>SUBTOTAL</span>
+                    <span>${order.subtotal.toLocaleString()}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:11px;">
+                    <span>PPN (10%)</span>
+                    <span>${order.ppn.toLocaleString()}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px; margin-top:5px;">
+                    <span>TOTAL</span>
+                    <span>Rp${order.total.toLocaleString()}</span>
+                </div>
+                
+                <div style="text-align:center; margin-top:15px; font-size:10px;">
+                    <p style="margin:0;">Terima kasih atas kunjungannya!</p>
+                    <p style="margin:0;">-- Powered by POS Hub --</p>
+                </div>
+            `;
+
+            // 3. Tampilkan brankas sebentar -> Print -> Sembunyikan lagi
+            printArea.classList.remove('hidden');
+            window.print();
+            printArea.classList.add('hidden');
         }
     </script>
 </body>
