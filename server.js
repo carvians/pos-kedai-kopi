@@ -59,12 +59,14 @@ io.on('connection', (socket) => {
                 const qty = clientItem.qty || 1; 
                 // Kalikan dengan harga total item
                 const itemTotal = (original.price + original.fee) * qty; 
-                
+                const noteText = clientItem.note || "";
+
                 validatedItems.push({
                     name: original.name,
                     qty: qty, // Simpan qty ke database
                     total: itemTotal,
-                    stand: original.stand
+                    stand: original.stand,
+                    note: noteText
                 });
                 subtotal += itemTotal;
             }

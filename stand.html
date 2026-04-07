@@ -79,11 +79,14 @@
                         <span class="bg-white text-black px-4 py-2 rounded-full text-[10px] font-black tracking-widest shadow-lg">MEJA ${order.table}</span>
                     </div>
                     
-                    <ul class="mb-6 opacity-90 space-y-2 mt-4">
+                    <ul class="mb-6 opacity-90 space-y-3 mt-4">
                         ${myItems.map(i => `
-                        <li class="flex items-center gap-3 border-b border-white/5 pb-3 text-sm font-bold">
-                            <span class="bg-stone-800 text-stone-400 w-6 h-6 flex items-center justify-center rounded-md text-[10px]">1x</span> 
-                            ${i.name}
+                        <li class="flex flex-col border-b border-white/5 pb-3">
+                            <div class="flex items-center gap-3 text-sm font-bold">
+                                <span class="bg-stone-800 text-stone-400 w-6 h-6 flex items-center justify-center rounded-md text-[10px]">${i.qty}x</span> 
+                                ${i.name}
+                            </div>
+                            ${i.note ? `<p class="text-[10px] text-orange-400 mt-1.5 ml-9 font-mono bg-orange-500/10 inline-block px-2 py-1 rounded-md border border-orange-500/20">📝 Catatan: ${i.note}</p>` : ''}
                         </li>`).join('')}
                     </ul>
                     
