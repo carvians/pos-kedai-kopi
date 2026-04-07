@@ -22,19 +22,29 @@
         ::-webkit-scrollbar-track { background: #121215; }
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
+        
+        /* Kustomisasi scrollbar khusus grid stand */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #ea580c; }
     </style>
 </head>
 <body class="h-screen overflow-hidden flex flex-col">
 
-    <div id="setup-stand" class="fixed inset-0 bg-[#0c0c0e]/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 transition-opacity duration-500">
-        <div class="glass-panel p-10 rounded-[3rem] border border-stone-800 shadow-2xl text-center max-w-md w-full neon-shadow">
-            <div class="text-7xl mb-6 drop-shadow-2xl animate-bounce">👨‍🍳</div>
-            <h2 class="text-3xl font-black tracking-tight text-white mb-2">Pilih Station</h2>
-            <p class="text-stone-400 text-xs font-bold mb-8 uppercase tracking-widest">Tentukan monitor untuk dapur:</p>
+    <div id="setup-stand" class="fixed inset-0 bg-[#0c0c0e]/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4 md:p-10 transition-opacity duration-500">
+        <div class="glass-panel p-8 md:p-12 rounded-[3rem] border border-stone-800 shadow-2xl max-w-5xl w-full neon-shadow flex flex-col max-h-[90vh]">
             
-            <div id="stand-buttons-container" class="space-y-4">
-                <p class="text-stone-500 animate-pulse text-sm text-center">Memuat daftar stand dari server...</p>
+            <div class="text-center mb-8 shrink-0">
+                <div class="text-6xl mb-4 drop-shadow-2xl animate-bounce">👨‍🍳</div>
+                <h2 class="text-3xl md:text-4xl font-black tracking-tight text-white mb-2">Pilih Station Dapur</h2>
+                <p class="text-stone-400 text-xs md:text-sm font-bold uppercase tracking-widest">Tersedia <span id="stand-count" class="text-orange-500">0</span> monitor stand aktif</p>
             </div>
+            
+            <div id="stand-buttons-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 overflow-y-auto pr-2 pb-4 custom-scrollbar flex-1 content-start">
+                <p class="text-stone-500 animate-pulse text-sm text-center col-span-full py-10">Menghubungkan ke server pusat...</p>
+            </div>
+
         </div>
     </div>
 
@@ -60,7 +70,7 @@
 
     <main class="p-6 md:p-10 flex-1 overflow-y-auto">
         <div id="kitchen-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8 auto-rows-max">
-            </div>
+        </div>
     </main>
 
     <script>
@@ -73,16 +83,35 @@
         socket.on('receive_all_menu', (menus) => {
             const uniqueStands = [...new Set(menus.map(m => m.stand))];
             const container = document.getElementById('stand-buttons-container');
+            
+            document.getElementById('stand-count').innerText = uniqueStands.length;
             container.innerHTML = ""; 
             
-            const emojis = ['🍳', '☕', '🥤', '🍕', '🍜', '🍰'];
+            const emojis = ['🍳', '☕', '🥤', '🍕', '🍜', '🍰', '🍣', '🥩', '🥗', '🍔'];
+            const glowColors = [
+                'from-orange-500 to-amber-500', 'from-blue-500 to-cyan-500', 
+                'from-emerald-500 to-teal-500', 'from-rose-500 to-pink-500', 
+                'from-purple-500 to-fuchsia-500', 'from-indigo-500 to-blue-500'
+            ];
             
             uniqueStands.forEach((stand, index) => {
                 const emoji = emojis[index % emojis.length]; 
+                const bgGradient = glowColors[index % glowColors.length];
                 
                 container.innerHTML += `
-                    <button onclick="selectStand('${stand}')" class="w-full bg-[#18181b] border border-stone-700 hover:border-[#d4b895] hover:bg-[#27272a] text-white p-5 rounded-2xl font-black text-lg transition-all active:scale-95 flex items-center justify-center gap-3 shadow-lg">
-                        <span class="text-2xl">${emoji}</span> ${stand}
+                    <button onclick="selectStand('${stand}')" class="group relative bg-[#18181b] border border-stone-800 hover:border-stone-600 rounded-3xl p-6 transition-all duration-300 hover:-translate-y-2 hover:shadow-[0_10px_30px_-10px_rgba(255,255,255,0.1)] flex flex-col items-center justify-center gap-4 overflow-hidden h-40">
+                        
+                        <div class="absolute inset-0 bg-gradient-to-br ${bgGradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300"></div>
+
+                        <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${bgGradient} opacity-30 group-hover:opacity-100 transition-opacity"></div>
+
+                        <div class="w-16 h-16 rounded-2xl bg-stone-900 border border-stone-700 flex items-center justify-center text-3xl shadow-inner group-hover:scale-110 transition-transform duration-300 relative z-10">
+                            ${emoji}
+                        </div>
+                        
+                        <span class="font-bold text-stone-400 group-hover:text-white text-[11px] uppercase tracking-widest text-center leading-tight relative z-10 transition-colors">
+                            ${stand}
+                        </span>
                     </button>
                 `;
             });
