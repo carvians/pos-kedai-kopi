@@ -199,14 +199,19 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('get_admin_stats', () => {
-        socket.emit('admin_update', calculateStats());
+    socket.on('get_admin_stats', async () => {
+    const stats = await calculateStats();
+    socket.emit('admin_update', stats);
     });
 });
 
-function calculateStats() {
+async function calculateStats() {
+    // Ambil data terbaru langsung dari MongoDB
+    const allPaidOrders = await Order.find({ status: 'PAID' });
+    
     let stats = { totalSales: 0, paidOrders: 0, standRevenue: {}, topItems: {} };
-    orders.filter(o => o.status === 'PAID').forEach(o => {
+    
+    allPaidOrders.forEach(o => {
         stats.totalSales += o.total;
         stats.paidOrders++;
         o.items.forEach(item => {
