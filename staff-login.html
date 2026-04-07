@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Staff | Kedai Kopi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #3d2b1f; color: white; }
+    </style>
+</head>
+<body class="h-screen flex items-center justify-center p-6">
+
+    <div class="bg-white text-stone-800 p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm animate-in fade-in slide-in-from-bottom-8 duration-500">
+        <div class="text-center mb-8">
+            <h1 class="text-2xl font-extrabold text-[#634832]">Portal Staff 🔐</h1>
+            <p class="text-xs text-stone-400 mt-1">Silakan masuk sesuai posisi Anda</p>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-2">Pilih Posisi</label>
+                <select id="role" class="w-full mt-1 bg-stone-50 border border-stone-200 text-stone-800 text-sm rounded-2xl focus:ring-[#634832] focus:border-[#634832] block p-4 font-bold outline-none">
+                    <option value="kasir">💳 Kasir Pusat</option>
+                    <option value="stand">🏢 Penjaga Stand</option>
+                    <option value="admin">⚙️ Administrator Utama</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold text-stone-400 uppercase tracking-widest ml-2">Password</label>
+                <input type="password" id="password" class="w-full mt-1 bg-stone-50 border border-stone-200 text-stone-800 text-sm rounded-2xl focus:ring-[#634832] focus:border-[#634832] block p-4 font-bold outline-none placeholder-stone-300" placeholder="Masukkan password...">
+            </div>
+
+            <button onclick="login()" class="w-full bg-[#634832] hover:bg-[#3d2b1f] text-white font-bold rounded-2xl text-sm px-5 py-4 text-center transition-all mt-4 shadow-lg active:scale-95">
+                MASUK SEKARANG
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+
+        function login() {
+            const role = document.getElementById('role').value;
+            const password = document.getElementById('password').value;
+
+            if(!password) return alert("Password tidak boleh kosong!");
+
+            // Kirim data ke server untuk divalidasi
+            socket.emit('attempt_staff_login', { role, password });
+        }
+
+        // Terima jawaban dari server
+        socket.on('staff_login_result', (response) => {
+            if (response.success) {
+                // Simpan "Tiket Masuk" di browser
+                sessionStorage.setItem('staff_role', response.role);
+                sessionStorage.setItem('is_logged_in', 'true');
+                
+                // Arahkan ke halaman masing-masing
+                if (response.role === 'admin') window.location.href = "admin.html";
+                if (response.role === 'kasir') window.location.href = "kasir.html";
+                if (response.role === 'stand') window.location.href = "stand.html";
+            } else {
+                alert("❌ " + response.message);
+                document.getElementById('password').value = ""; // Kosongkan input
+            }
+        });
+    </script>
+</body>
+</html>

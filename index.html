@@ -77,7 +77,8 @@
     </div>
 
     <div id="cart-modal" class="hidden fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm">
-        <div onclick="toggleModal()" class="absolute inset-0"></div> <div class="modal-content bg-white w-full max-w-md rounded-t-[3rem] p-8 relative shadow-2xl">
+        <div onclick="toggleModal()" class="absolute inset-0"></div> 
+        <div class="modal-content bg-white w-full max-w-md rounded-t-[3rem] p-8 relative shadow-2xl">
             <div class="w-12 h-1.5 bg-stone-200 rounded-full mx-auto mb-6"></div>
             
             <div class="flex justify-between items-center mb-6">
@@ -94,7 +95,7 @@
                     <span id="modal-subtotal">Rp0</span>
                 </div>
                 <div class="flex justify-between text-stone-400 text-xs font-bold uppercase tracking-wider">
-                    <span>Pajak (11%)</span>
+                    <span>Pajak (10%)</span>
                     <span id="modal-ppn">Rp0</span>
                 </div>
                 <div class="flex justify-between font-extrabold text-xl text-[#3d2b1f] pt-2">
@@ -192,17 +193,21 @@
             }
         }
 
-        function addToCart(name, total, stand) {
-            cart.push({name, total, stand});
+        function addToCart(name, price, stand) {
+            const existingItem = cart.find(item => item.name === name);
+            if (existingItem) {
+                existingItem.qty += 1;
+            } else {
+                cart.push({ name: name, price: price, stand: stand, qty: 1 });
+            }
             updateTotalBar();
         }
 
         function updateTotalBar() {
-            const sum = cart.reduce((a, b) => a + b.total, 0);
+            const sum = cart.reduce((a, b) => a + (b.price * b.qty), 0);
             document.getElementById('total-txt').innerText = `Rp${sum.toLocaleString()}`;
         }
 
-        // --- FUNGSI MODAL ---
         function toggleModal() {
             const modal = document.getElementById('cart-modal');
             modal.classList.toggle('hidden');
@@ -215,31 +220,40 @@
 
             if (cart.length === 0) {
                 list.innerHTML = "<div class='text-center py-10 opacity-30 text-xs font-bold'>KERANJANG KOSONG</div>";
+                document.getElementById('modal-subtotal').innerText = "Rp0";
+                document.getElementById('modal-ppn').innerText = "Rp0";
+                document.getElementById('modal-total-price').innerText = "Rp0";
+                return;
             }
 
             cart.forEach((item, index) => {
+                const rowTotal = item.price * item.qty;
                 list.innerHTML += `
                 <div class="flex justify-between items-center bg-stone-50 p-4 rounded-2xl border border-stone-100">
-                    <div>
-                        <p class="font-bold text-stone-800 text-xs">${item.name}</p>
+                    <div class="flex-1">
+                        <p class="font-bold text-stone-800 text-xs">${item.name} <span class="text-[#634832] ml-1 font-black">x${item.qty}</span></p>
                         <p class="text-[9px] text-stone-400 uppercase">${item.stand}</p>
                     </div>
                     <div class="flex items-center gap-3">
-                        <span class="font-bold text-[#634832] text-xs font-mono">Rp${item.total.toLocaleString()}</span>
-                        <button onclick="removeFromCart(${index})" class="w-6 h-6 bg-red-50 text-red-400 rounded-lg text-[10px] flex items-center justify-center font-black">×</button>
+                        <span class="font-bold text-[#634832] text-xs font-mono">Rp${rowTotal.toLocaleString()}</span>
+                        <button onclick="reduceFromCart(${index})" class="w-6 h-6 bg-red-50 text-red-400 rounded-lg text-[14px] flex items-center justify-center font-black pb-0.5">-</button>
                     </div>
                 </div>`;
             });
 
-            const subtotal = cart.reduce((a, b) => a + b.total, 0);
+            const subtotal = cart.reduce((a, b) => a + (b.price * b.qty), 0);
             const ppn = subtotal * 0.10;
             document.getElementById('modal-subtotal').innerText = `Rp${subtotal.toLocaleString()}`;
             document.getElementById('modal-ppn').innerText = `Rp${ppn.toLocaleString()}`;
             document.getElementById('modal-total-price').innerText = `Rp${(subtotal + ppn).toLocaleString()}`;
         }
 
-        function removeFromCart(index) {
-            cart.splice(index, 1);
+        function reduceFromCart(index) {
+            if (cart[index].qty > 1) {
+                cart[index].qty -= 1;
+            } else {
+                cart.splice(index, 1);
+            }
             updateTotalBar();
             renderCartItems();
         }
@@ -247,7 +261,7 @@
         function checkout() {
             if(cart.length === 0) return alert("Keranjang masih kosong!");
             const id = "ORD-" + Date.now().toString().slice(-4);
-            const subtotal = cart.reduce((a, b) => a + b.total, 0);
+            const subtotal = cart.reduce((a, b) => a + (b.price * b.qty), 0);
             const ppn = subtotal * 0.10;
             const grandTotal = subtotal + ppn;
 

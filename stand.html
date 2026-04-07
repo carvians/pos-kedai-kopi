@@ -5,6 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kitchen Monitor</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    // --- SCRIPT SATPAM (HARUS PALING ATAS) ---
+    const isStaffLoggedIn = sessionStorage.getItem('is_logged_in');
+    const staffRole = sessionStorage.getItem('staff_role');
+
+    // Jika belum login, tendang ke halaman login
+    if (!isStaffLoggedIn || !staffRole) {
+        window.location.replace("staff-login.html");
+    }
+    // (Opsional) Jika kasir nyasar ke halaman admin, tendang juga
+    // if (staffRole !== 'admin') window.location.replace("staff-login.html");
+    </script>
     <script src="/socket.io/socket.io.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
     <style>

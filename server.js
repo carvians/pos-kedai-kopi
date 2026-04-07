@@ -30,8 +30,24 @@ const officialMenu = [
 
 let orders = []; 
 
+// --- DATA PASSWORD STAFF ---
+const staffCredentials = {
+    admin: "admin123", // Password untuk Admin
+    kasir: "kasir123", // Password untuk Kasir
+    stand: "stand123"  // Password untuk Stand
+};
+
 io.on('connection', (socket) => {
     
+    // --- FITUR LOGIN STAFF ---
+    socket.on('attempt_staff_login', (data) => {
+        // Cek apakah password yang dimasukkan cocok dengan database server
+        if (staffCredentials[data.role] === data.password) {
+            socket.emit('staff_login_result', { success: true, role: data.role });
+        } else {
+            socket.emit('staff_login_result', { success: false, message: "Password salah!" });
+        }
+    }); 
     socket.on('submit_order', (clientData) => {
         let validatedItems = [];
         let subtotal = 0;
@@ -39,9 +55,14 @@ io.on('connection', (socket) => {
         clientData.items.forEach(clientItem => {
             const original = officialMenu.find(m => m.name === clientItem.name);
             if (original) {
-                const itemTotal = original.price + original.fee;
+                // Ambil qty dari pesanan HP (default 1 jika kosong)
+                const qty = clientItem.qty || 1; 
+                // Kalikan dengan harga total item
+                const itemTotal = (original.price + original.fee) * qty; 
+                
                 validatedItems.push({
                     name: original.name,
+                    qty: qty, // Simpan qty ke database
                     total: itemTotal,
                     stand: original.stand
                 });
@@ -49,7 +70,7 @@ io.on('connection', (socket) => {
             }
         });
 
-        // --- KOREKSI PAJAK JADI 10% ---
+        // --- PAJAK SUDAH FIX 10% ---
         const ppn = subtotal * 0.10; 
         const grandTotal = subtotal + ppn;
 
@@ -91,7 +112,7 @@ function calculateStats() {
         stats.paidOrders++;
         o.items.forEach(item => {
             stats.standRevenue[item.stand] = (stats.standRevenue[item.stand] || 0) + item.total;
-            stats.topItems[item.name] = (stats.topItems[item.name] || 0) + 1;
+            stats.topItems[item.name] = (stats.topItems[item.name] || 0) + item.qty; // Update admin stats sesuai qty
         });
     });
     return stats;
