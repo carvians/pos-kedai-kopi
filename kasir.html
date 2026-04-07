@@ -152,29 +152,30 @@
 
         // 2. FUNGSI SAAT TOMBOL LUNAS DITEKAN
         function payOrder(id, total, btnElement) {
-            // Munculkan popup konfirmasi agar kasir tidak salah klik
+            // Munculkan popup konfirmasi awal
             if(confirm(`Sudah terima uang Rp${total.toLocaleString()} dari pesanan ini?`)) {
                 
-                // A. Beritahu Server untuk menyuruh dapur masak!
                 socket.emit('confirm_payment', id);
                 
-                // B. Tambah angka di Kas Masuk
                 totalRevenue += total;
                 document.getElementById('revenue').innerText = 'Rp' + totalRevenue.toLocaleString();
                 
-                // C. Hapus kartu dari layar dengan animasi menyusut
                 const card = btnElement.closest(`div[id^="order-"]`);
-                card.classList.add('scale-75', 'opacity-0'); // Animasi hilang
+                card.classList.add('scale-75', 'opacity-0'); 
                 
                 setTimeout(() => {
                     card.remove();
                     orderCount--;
-                    // Munculkan orang ngorok kalau antrean habis
                     if(orderCount === 0) document.getElementById('empty-state').style.display = 'flex';
                 }, 300);
 
-                // D. Bunyi Mesin Kasir (Cha-Ching!)
+                // Bunyi Mesin Kasir (Cha-Ching!)
                 new Audio('https://assets.mixkit.co/sfx/preview/mixkit-cash-register-purchase-87.mp3').play();
+                
+                // --- FIX: Tambahkan Pop-up Notifikasi Sukses di sini ---
+                setTimeout(() => {
+                    alert(`✅ PEMBAYARAN BERHASIL!\nPesanan #${id} telah otomatis diteruskan ke layar dapur.`);
+                }, 100); 
             }
         }
     </script>

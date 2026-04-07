@@ -85,7 +85,8 @@ io.on('connection', (socket) => {
             ppn: ppn,
             total: grandTotal,
             status: 'WAITING_PAYMENT',
-            time: new Date().toLocaleTimeString('id-ID')
+            time: new Date().toLocaleTimeString('id-ID'),
+            completedStands: []
         };
 
         orders.push(finalOrder);
@@ -102,6 +103,20 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('request_stand_orders', (standName) => {
+        const pendingOrders = orders.filter(o => 
+            o.status === 'PAID' && 
+            !o.completedStands.includes(standName) && // Belum diselesaikan oleh stand ini
+            o.items.some(i => i.stand === standName)  // Pesanan punya menu dari stand ini
+        );
+        socket.emit('load_stand_orders', pendingOrders);
+    });
+    socket.on('mark_stand_completed', (data) => {
+        let order = orders.find(o => o.id === data.orderId);
+        if (order && !order.completedStands.includes(data.stand)) {
+            order.completedStands.push(data.stand); // Coret pesanan dari papan
+        }
+    }),
     socket.on('get_admin_stats', () => {
         socket.emit('admin_update', calculateStats());
     });

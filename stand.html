@@ -52,9 +52,9 @@
 
     <script>
         const socket = io();
-        let MY_STAND = ""; // Variabelnya sekarang let, bukan const
+        let MY_STAND = ""; 
 
-        // Fungsi saat koki memilih stand
+        // 1. FUNGSI SAAT MEMILIH STAND
         function selectStand(standName) {
             MY_STAND = standName;
             document.getElementById('setup-stand').style.opacity = '0';
@@ -62,42 +62,74 @@
                 document.getElementById('setup-stand').classList.add('hidden');
             }, 300);
             document.getElementById('active-stand').innerText = standName;
+
+            // --- MINTA SERVER KIRIMKAN PESANAN YANG NYANGKUT ---
+            socket.emit('request_stand_orders', MY_STAND);
         }
 
-        socket.on('order_paid_broadcast', (order) => {
+        // 2. FUNGSI MERAKIT KARTU PESANAN (Biar tidak diulang-ulang kodenya)
+        function renderOrderCard(order) {
             const myItems = order.items.filter(i => i.stand === MY_STAND);
+            if(myItems.length === 0) return; // Jika tidak ada menu untuk stand ini, abaikan
+
+            // Cek kalau kartu sudah ada di layar biar tidak dobel
+            if(document.getElementById(`stand-order-${order.id}`)) return;
+
+            const card = document.createElement('div');
+            card.id = `stand-order-${order.id}`;
+            card.className = "bg-[#1e1e1e] border border-stone-800 p-6 rounded-[2rem] shadow-2xl animate-in fade-in zoom-in duration-300";
             
-            if(myItems.length > 0) {
-                const card = document.createElement('div');
-                card.className = "bg-[#1e1e1e] border border-stone-800 p-6 rounded-[2rem] shadow-2xl animate-in fade-in zoom-in duration-300";
-                card.innerHTML = `
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <span class="text-4xl font-black text-white">#${order.id}</span>
-                            <p class="text-[10px] text-stone-500 font-bold mt-1 uppercase tracking-widest">Pesanan: <span class="text-orange-400 text-xs">${order.user}</span></p>
-                        </div>
-                        <span class="bg-white text-black px-4 py-2 rounded-full text-[10px] font-black tracking-widest shadow-lg">MEJA ${order.table}</span>
+            card.innerHTML = `
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <span class="text-4xl font-black text-white">#${order.id}</span>
+                        <p class="text-[10px] text-stone-500 font-bold mt-1 uppercase tracking-widest">Pesanan: <span class="text-orange-400 text-xs">${order.user}</span></p>
                     </div>
-                    
-                    <ul class="mb-6 opacity-90 space-y-3 mt-4">
-                        ${myItems.map(i => `
-                        <li class="flex flex-col border-b border-white/5 pb-3">
-                            <div class="flex items-center gap-3 text-sm font-bold">
-                                <span class="bg-stone-800 text-stone-400 w-6 h-6 flex items-center justify-center rounded-md text-[10px]">${i.qty}x</span> 
-                                ${i.name}
-                            </div>
-                            ${i.note ? `<p class="text-[10px] text-orange-400 mt-1.5 ml-9 font-mono bg-orange-500/10 inline-block px-2 py-1 rounded-md border border-orange-500/20">📝 Catatan: ${i.note}</p>` : ''}
-                        </li>`).join('')}
-                    </ul>
-                    
-                    <button onclick="this.parentElement.remove()" class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-xl font-black text-xs tracking-widest transition-all shadow-[0_0_15px_rgba(234,88,12,0.4)]">SELESAI / CETAK</button>
-                `;
-                document.getElementById('kitchen-grid').appendChild(card);
+                    <span class="bg-white text-black px-4 py-2 rounded-full text-[10px] font-black tracking-widest shadow-lg">MEJA ${order.table}</span>
+                </div>
                 
-                // Audio Khas Kitchen
-                new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3').play();
-            }
+                <ul class="mb-6 opacity-90 space-y-3 mt-4">
+                    ${myItems.map(i => `
+                    <li class="flex flex-col border-b border-white/5 pb-3">
+                        <div class="flex items-center gap-3 text-sm font-bold">
+                            <span class="bg-stone-800 text-stone-400 w-6 h-6 flex items-center justify-center rounded-md text-[10px]">${i.qty || 1}x</span> 
+                            ${i.name}
+                        </div>
+                        ${i.note ? `<p class="text-[10px] text-orange-400 mt-1.5 ml-9 font-mono bg-orange-500/10 inline-block px-2 py-1 rounded-md border border-orange-500/20">📝 Catatan: ${i.note}</p>` : ''}
+                    </li>`).join('')}
+                </ul>
+                
+                <button onclick="finishOrder('${order.id}')" class="w-full bg-orange-600 hover:bg-orange-500 py-4 rounded-xl font-black text-xs tracking-widest transition-all active:scale-95 shadow-[0_0_15px_rgba(234,88,12,0.4)]">SELESAI DIMASAK</button>
+            `;
+            document.getElementById('kitchen-grid').appendChild(card);
+        }
+
+        // 3. FUNGSI SAAT TOMBOL SELESAI DIPENCET
+        function finishOrder(orderId) {
+            // Lapor ke server bahwa stand ini sudah selesai
+            socket.emit('mark_stand_completed', { orderId: orderId, stand: MY_STAND });
+            
+            // Hapus kartu dari layar
+            const card = document.getElementById(`stand-order-${orderId}`);
+            card.classList.replace('zoom-in', 'zoom-out');
+            card.classList.add('opacity-0', 'scale-50');
+            setTimeout(() => card.remove(), 300);
+        }
+
+        // --- LISTENER DARI SERVER ---
+        // A. Terima pesanan yang baru saja dilunasi Kasir
+        socket.on('order_paid_broadcast', (order) => {
+            renderOrderCard(order);
+            // Bunyikan bel karena ini orderan baru (LIVE)
+            const myItems = order.items.filter(i => i.stand === MY_STAND);
+            if(myItems.length > 0) new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3').play();
         });
+
+        // B. Terima pesanan lama saat koki baru login/refresh halaman
+        socket.on('load_stand_orders', (ordersList) => {
+            ordersList.forEach(order => renderOrderCard(order));
+        });
+
     </script>
 </body>
 </html>

@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Selesaikan Pembayaran | POS Hub</title>
+    <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800;900&display=swap" rel="stylesheet">
     <style>
@@ -14,17 +16,19 @@
 </head>
 <body class="min-h-screen flex flex-col items-center py-10 px-6">
 
-    <div class="w-full max-w-md bg-white p-8 rounded-[3rem] shadow-2xl text-center border border-stone-100">
+    <div id="main-card" class="w-full max-w-md bg-white p-8 rounded-[3rem] shadow-2xl text-center border border-stone-100 transition-all duration-500">
         
-        <h2 class="text-stone-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Batas Waktu Pembayaran</h2>
+        <h2 id="main-title" class="text-stone-400 text-[10px] font-black uppercase tracking-[0.2em] mb-2">Batas Waktu Pembayaran</h2>
         
-        <div class="relative flex items-center justify-center my-6">
+        <div id="timer-container" class="relative flex items-center justify-center my-6">
             <svg class="w-32 h-32 transform -rotate-90">
                 <circle cx="64" cy="64" r="56" stroke="currentColor" stroke-width="8" fill="transparent" class="text-stone-100" />
                 <circle id="timer-bar" cx="64" cy="64" r="56" stroke="currentColor" stroke-width="8" fill="transparent" stroke-dasharray="352" stroke-dashoffset="0" class="text-[#634832] timer-circle" />
             </svg>
             <div class="absolute text-2xl font-black text-stone-800" id="timer-text">15:00</div>
         </div>
+
+        <div id="success-icon" class="hidden text-7xl my-6 animate-bounce">👨‍🍳</div>
 
         <div class="mb-6">
             <p class="text-[10px] font-black text-stone-400 tracking-widest uppercase">ID PESANAN ANDA</p>
@@ -54,16 +58,19 @@
             </div>
         </div>
 
-        <p class="text-xs text-stone-500 font-bold leading-relaxed mb-6">
+        <p id="instruction-text" class="text-xs text-stone-500 font-bold leading-relaxed mb-6">
             Silakan tunjukkan layar ini ke <span class="text-[#634832] font-black">Kasir Pusat</span> untuk memproses pesanan Anda.
         </p>
 
-        <button onclick="window.location.href='index.html'" class="text-[#634832] font-bold text-xs uppercase tracking-widest underline opacity-50 hover:opacity-100 transition-all">
+        <button id="cancel-btn" onclick="window.location.href='index.html'" class="text-[#634832] font-bold text-xs uppercase tracking-widest underline opacity-50 hover:opacity-100 transition-all">
             &larr; Batal & Kembali ke Menu
         </button>
     </div>
 
     <script>
+        // INISIALISASI SOCKET
+        const socket = io();
+
         // Ambil data dari Session Storage
         const orderId = sessionStorage.getItem('last_order_id');
         const items = JSON.parse(sessionStorage.getItem('last_order_items') || '[]');
@@ -80,16 +87,23 @@
         document.getElementById('ppn-display').innerText = `Rp${ppn.toLocaleString()}`;
         document.getElementById('total-display').innerText = `Rp${total.toLocaleString()}`;
 
-        // Render Rincian Item
+        // Render Rincian Item (Sekarang Mendukung QTY dan Note)
         const itemsContainer = document.getElementById('order-items-list');
         items.forEach(item => {
+            // Hitung harga per baris berdasarkan qty
+            const rowTotal = item.price * (item.qty || 1);
+            const noteHtml = item.note ? `<p class="text-[9px] text-orange-500 mt-1 italic">Catatan: ${item.note}</p>` : '';
+
             itemsContainer.innerHTML += `
-                <div class="flex justify-between items-start text-sm">
-                    <div>
-                        <p class="font-bold text-stone-800 leading-tight">${item.name}</p>
-                        <p class="text-[9px] font-bold text-stone-400 uppercase tracking-widest">${item.stand.replace('_', ' ')}</p>
+                <div class="flex justify-between items-start text-sm border-b border-stone-100 pb-2 last:border-0">
+                    <div class="flex-1 pr-2">
+                        <p class="font-bold text-stone-800 leading-tight">
+                            <span class="text-[#634832] mr-1">${item.qty || 1}x</span>${item.name}
+                        </p>
+                        <p class="text-[9px] font-bold text-stone-400 uppercase tracking-widest mt-1">${item.stand.replace('_', ' ')}</p>
+                        ${noteHtml}
                     </div>
-                    <span class="font-bold text-stone-600">Rp${item.total.toLocaleString()}</span>
+                    <span class="font-bold text-stone-600">Rp${rowTotal.toLocaleString()}</span>
                 </div>
             `;
         });
@@ -106,7 +120,7 @@
 
             timerText.innerText = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
             
-            // Animasi Lingkaran Timer (352 adalah panjang keliling lingkaran SVG)
+            // Animasi Lingkaran Timer
             const offset = 352 - (timeLeft / totalTime) * 352;
             timerBar.style.strokeDashoffset = offset;
 
@@ -117,6 +131,29 @@
             }
             timeLeft--;
         }, 1000);
+
+        // --- REAL-TIME LISTENER DARI KASIR ---
+        socket.on('order_paid_broadcast', (paidOrder) => {
+            if(paidOrder.id === orderId) {
+                // 1. Matikan Timer agar tidak meledak waktu habis
+                clearInterval(countdown);
+
+                // 2. Ubah Tampilan Menjadi LUNAS
+                document.getElementById('main-title').innerText = "✅ PEMBAYARAN BERHASIL";
+                document.getElementById('main-title').classList.replace('text-stone-400', 'text-green-600');
+                
+                document.getElementById('timer-container').classList.add('hidden');
+                document.getElementById('success-icon').classList.remove('hidden');
+
+                document.getElementById('instruction-text').innerHTML = "Terima kasih! Silakan duduk manis, koki kami sedang <b>menyiapkan pesanan kamu</b> di dapur.";
+                document.getElementById('instruction-text').classList.replace('text-stone-500', 'text-[#3d2b1f]');
+
+                document.getElementById('cancel-btn').classList.add('hidden'); // Sembunyikan tombol batal
+
+                // 3. Mainkan Suara Sukses
+                new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3').play();
+            }
+        });
     </script>
 </body>
 </html>
