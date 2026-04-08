@@ -149,6 +149,17 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- FITUR BARU: UPDATE PASSWORD STAND DARI POP-UP ---
+    socket.on('admin_update_stand_password', async (data) => {
+        try {
+            await StandAccount.findOneAndUpdate({ name: data.name }, { password: data.password });
+            socket.emit('update_status', { success: true, message: `Password Stand ${data.name} berhasil diperbarui!` });
+            io.emit('stand_list_updated'); // Refresh list di admin
+        } catch (err) {
+            socket.emit('update_status', { success: false, message: "Gagal memperbarui password stand." });
+        }
+    });
+
     socket.on('get_stand_accounts', async () => {
         const stands = await StandAccount.find();
         socket.emit('receive_stand_accounts', stands);

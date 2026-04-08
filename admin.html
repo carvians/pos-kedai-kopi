@@ -82,8 +82,13 @@
             </div>
 
             <div class="flex flex-col md:flex-row gap-4 mb-8">
-                <input type="text" id="s-name" placeholder="Nama Stand Baru" class="flex-1 p-5 bg-white/5 rounded-2xl outline-none border border-white/10 font-bold focus:border-orange-500/50 focus:bg-white/10 transition-all placeholder:text-stone-600">
-                <input type="password" id="s-pass" placeholder="Set Password" class="flex-1 p-5 bg-white/5 rounded-2xl outline-none border border-white/10 font-bold focus:border-orange-500/50 focus:bg-white/10 transition-all placeholder:text-stone-600">
+                <input type="text" id="s-name" placeholder="Nama Stand Baru" class="flex-1 p-5 bg-white/5 rounded-2xl outline-none border border-white/10 font-bold focus:border-orange-500/50 focus:bg-white/10 transition-all placeholder:text-stone-600 text-white">
+                
+                <div class="relative flex-1">
+                    <input type="password" id="s-pass" placeholder="Set Password" class="w-full p-5 bg-white/5 rounded-2xl outline-none border border-white/10 font-bold focus:border-orange-500/50 focus:bg-white/10 transition-all placeholder:text-stone-600 text-white">
+                    <button type="button" onclick="togglePassword('s-pass')" class="absolute right-4 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 text-xl">👁️</button>
+                </div>
+
                 <button onclick="createStand()" class="bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 px-12 py-5 rounded-2xl font-black tracking-widest transition-all active:scale-95 shadow-lg shadow-orange-900/40">
                     AKTIVASI AKUN
                 </button>
@@ -168,12 +173,19 @@
                     
                     <div class="space-y-4 mb-8">
                         <p class="text-xs text-stone-400 font-bold leading-relaxed mb-1">Daftarkan akun kasir baru dengan namanya di sini.</p>
+                        
                         <input type="text" id="p-username" placeholder="Nama Lengkap Kasir/Admin" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 placeholder:text-stone-400">
+                        
                         <select id="p-role" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 cursor-pointer">
                             <option value="kasir">💳 Akses Kasir</option>
                             <option value="admin">⚙️ Akses Admin Pusat</option>
                         </select>
-                        <input type="password" id="p-new" placeholder="Ketik Password" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 placeholder:text-stone-400">
+                        
+                        <div class="relative">
+                            <input type="password" id="p-new" placeholder="Ketik Password" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 placeholder:text-stone-400">
+                            <button type="button" onclick="togglePassword('p-new')" class="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 text-xl">👁️</button>
+                        </div>
+
                         <button onclick="addStaff()" class="w-full bg-stone-800 text-white p-5 rounded-xl font-black tracking-widest text-xs hover:bg-black transition-all shadow-xl mt-4">
                             DAFTARKAN / PERBARUI STAFF
                         </button>
@@ -182,12 +194,38 @@
                     <div class="mt-auto border-t border-stone-200 pt-6">
                         <p class="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-3">Daftar Akun Staff Aktif</p>
                         <div id="staff-account-list" class="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-                            </div>
+                        </div>
                     </div>
                 </div>
 
             </div>
         </div>
+
+        <div id="stand-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex-col items-center justify-center opacity-0 transition-opacity duration-300">
+            <div id="stand-modal-content" class="bg-stone-900 border border-stone-700 p-8 rounded-[2rem] shadow-2xl w-full max-w-sm transform scale-95 transition-transform duration-300">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h3 class="text-xl font-black text-white">Detail Akun Stand</h3>
+                        <p id="modal-stand-name" class="text-orange-400 font-black text-sm uppercase tracking-widest mt-1"></p>
+                    </div>
+                    <div class="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center text-xl">🏪</div>
+                </div>
+                
+                <div class="space-y-4">
+                    <label class="text-[10px] font-black text-stone-400 uppercase tracking-widest">Password Akses</label>
+                    <div class="relative">
+                        <input type="password" id="modal-stand-pass" class="w-full p-4 bg-white/5 rounded-xl border border-white/10 text-white font-bold outline-none focus:border-orange-500 transition-all">
+                        <button type="button" onclick="togglePassword('modal-stand-pass')" class="absolute right-4 top-1/2 -translate-y-1/2 text-stone-500 hover:text-stone-300 text-xl">👁️</button>
+                    </div>
+                    
+                    <div class="flex gap-3 mt-8 pt-4 border-t border-white/10">
+                        <button onclick="closeStandModal()" class="flex-1 bg-stone-800 hover:bg-stone-700 text-white p-4 rounded-xl font-black text-xs tracking-widest transition-all">TUTUP</button>
+                        <button onclick="saveStandPassword()" class="flex-1 bg-orange-600 hover:bg-orange-500 text-white p-4 rounded-xl font-black text-xs tracking-widest transition-all shadow-lg shadow-orange-900/50">PERBARUI</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <script>
@@ -197,12 +235,67 @@
         socket.emit('get_stand_accounts');
         socket.emit('get_all_menu');
         socket.emit('get_admin_stats');
-        socket.emit('get_staff_accounts'); // Panggil daftar staff
+        socket.emit('get_staff_accounts'); 
 
         // Lapor ke server kalau Admin ini sedang online
         const myUsername = sessionStorage.getItem('staff_username');
         if (myUsername) socket.emit('staff_connected', myUsername);
 
+        // --- LOGIKA MATA (TOGGLE PASSWORD) ---
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            if (input.type === "password") {
+                input.type = "text";
+            } else {
+                input.type = "password";
+            }
+        }
+
+        // --- LOGIKA POP-UP STAND ---
+        let currentEditStand = "";
+        
+        function openStandModal(name, password) {
+            currentEditStand = name;
+            document.getElementById('modal-stand-name').innerText = name;
+            
+            const passInput = document.getElementById('modal-stand-pass');
+            passInput.value = password;
+            passInput.type = "password"; // Reset ke titik-titik
+            
+            const modal = document.getElementById('stand-modal');
+            const content = document.getElementById('stand-modal-content');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeStandModal() {
+            const modal = document.getElementById('stand-modal');
+            const content = document.getElementById('stand-modal-content');
+            
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        function saveStandPassword() {
+            const newPassword = document.getElementById('modal-stand-pass').value;
+            if(!newPassword) return alert("⚠️ Password tidak boleh kosong!");
+            
+            socket.emit('admin_update_stand_password', { name: currentEditStand, password: newPassword });
+            closeStandModal();
+        }
+
+        // --- MANAJEMEN DATA ---
         function createStand() {
             const name = document.getElementById('s-name').value;
             const password = document.getElementById('s-pass').value;
@@ -217,9 +310,9 @@
             list.innerHTML = "";
             select.innerHTML = '<option disabled selected>-- Pilih Pemilik Stand --</option>';
             stands.forEach(s => {
-                list.innerHTML += `<div class="bg-white/10 p-4 rounded-xl flex justify-between items-center border border-white/5 shadow-sm">
-                    <span class="text-[11px] font-black uppercase tracking-wider">${s.name}</span>
-                    <button onclick="deleteStand('${s.name}')" class="text-red-400 hover:text-red-300">🗑️</button>
+                list.innerHTML += `<div onclick="openStandModal('${s.name}', '${s.password}')" class="bg-white/10 p-4 rounded-xl flex justify-between items-center border border-white/5 shadow-sm cursor-pointer hover:bg-white/20 hover:border-orange-500/30 transition-all group">
+                    <span class="text-[11px] font-black uppercase tracking-wider text-white">${s.name}</span>
+                    <button onclick="event.stopPropagation(); deleteStand('${s.name}')" class="text-stone-500 hover:text-red-400 opacity-50 group-hover:opacity-100 transition-all" title="Hapus Stand">🗑️</button>
                 </div>`;
                 select.innerHTML += `<option value="${s.name}">${s.name}</option>`;
             });
@@ -274,7 +367,6 @@
             document.getElementById('p-new').value = '';
         }
 
-        // --- LOGIKA DAFTAR STAFF (Dengan Badge Online) ---
         socket.on('receive_staff_accounts', (staffs) => {
             const list = document.getElementById('staff-account-list');
             list.innerHTML = "";
@@ -312,7 +404,7 @@
 
         socket.on('stand_list_updated', () => socket.emit('get_stand_accounts'));
         socket.on('menu_updated_broadcast', () => socket.emit('get_all_menu'));
-        socket.on('staff_list_updated', () => socket.emit('get_staff_accounts')); // Trigger pembaruan daftar staff
+        socket.on('staff_list_updated', () => socket.emit('get_staff_accounts')); 
         socket.on('update_status', (res) => alert(res.message));
     </script>
 </body>
