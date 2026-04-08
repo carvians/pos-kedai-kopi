@@ -20,18 +20,19 @@ const menuSchema = new mongoose.Schema({
 });
 const Menu = mongoose.model('Menu', menuSchema);
 
-// SCHEMA PESANAN
+// SCHEMA PESANAN (Ditambah processedBy)
 const orderSchema = new mongoose.Schema({
     id: String, user: String, table: String, items: Array, subtotal: Number,
-    ppn: Number, total: Number, status: String, time: String, completedStands: Array
+    ppn: Number, total: Number, status: String, time: String, completedStands: Array,
+    processedBy: String 
 });
 const Order = mongoose.model('Order', orderSchema);
 
-// SCHEMA STAFF (Admin/Kasir)
-const staffSchema = new mongoose.Schema({ role: String, password: String });
+// SCHEMA STAFF (Ditambah username)
+const staffSchema = new mongoose.Schema({ username: { type: String, unique: true }, role: String, password: String });
 const Staff = mongoose.model('Staff', staffSchema);
 
-// SCHEMA AKUN STAND (Baru!)
+// SCHEMA AKUN STAND
 const standAccountSchema = new mongoose.Schema({
     name: { type: String, unique: true },
     password: String
@@ -40,7 +41,11 @@ const StandAccount = mongoose.model('StandAccount', standAccountSchema);
 
 async function initDatabase() {
     if (await Staff.countDocuments() === 0) {
-        await Staff.insertMany([{ role: "admin", password: "admin123" }, { role: "kasir", password: "kasir123" }]);
+        // Buat akun default agar tetap bisa login
+        await Staff.insertMany([
+            { username: "admin_pusat", role: "admin", password: "admin123" }, 
+            { username: "kasir_utama", role: "kasir", password: "kasir123" }
+        ]);
     }
     console.log('🚀 Semua data di MongoDB siap digunakan!');
 }
@@ -53,11 +58,38 @@ app.get('/:page.html', (req, res) => res.sendFile(path.join(__dirname, req.param
 
 io.on('connection', (socket) => {
     
-    // --- LOGIN STAFF (ADMIN/KASIR) ---
+    // --- LOGIN STAFF ---
     socket.on('attempt_staff_login', async (data) => {
-        const staff = await Staff.findOne({ role: data.role, password: data.password });
-        socket.emit('staff_login_result', staff ? { success: true, role: data.role } : { success: false, message: "Password salah!" });
+        // Cek login pakai username atau role lama
+        let query = { password: data.password };
+        if (data.username) query.username = data.username;
+        else query.role = data.role;
+
+        const staff = await Staff.findOne(query);
+        if (staff) {
+            socket.emit('staff_login_result', { success: true, role: staff.role, username: staff.username });
+        } else {
+            socket.emit('staff_login_result', { success: false, message: "Password / Akun salah!" });
+        }
     }); 
+
+    // --- TAMBAH / UPDATE AKUN KASIR ---
+    socket.on('admin_add_staff', async (data) => {
+        try {
+            const existing = await Staff.findOne({ username: data.username });
+            if (existing) {
+                existing.password = data.password;
+                existing.role = data.role;
+                await existing.save();
+                socket.emit('update_status', { success: true, message: `Password akun ${data.username} diperbarui!` });
+            } else {
+                await new Staff(data).save();
+                socket.emit('update_status', { success: true, message: `Akun Staff ${data.username} berhasil dibuat!` });
+            }
+        } catch (err) {
+            socket.emit('update_status', { success: false, message: "Gagal memproses akun staff." });
+        }
+    });
 
     // --- MANAJEMEN AKUN STAND ---
     socket.on('admin_create_stand', async (data) => {
@@ -77,7 +109,7 @@ io.on('connection', (socket) => {
 
     socket.on('admin_delete_stand', async (standName) => {
         await StandAccount.findOneAndDelete({ name: standName });
-        await Menu.deleteMany({ stand: standName }); // Hapus juga menu miliknya
+        await Menu.deleteMany({ stand: standName }); 
         io.emit('stand_list_updated');
     });
 
@@ -124,16 +156,9 @@ io.on('connection', (socket) => {
             ppn: subtotal * 0.1, 
             total: subtotal * 1.1, 
             status: 'WAITING_PAYMENT', 
-            // --- BAGIAN YANG DIUBAH: PAKSA KE WIB ---
-            time: new Date().toLocaleTimeString('id-ID', { 
-                timeZone: 'Asia/Jakarta', 
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit', 
-                second: '2-digit' 
+            time: new Date().toLocaleString('id-ID', { 
+                timeZone: 'Asia/Jakarta', day: '2-digit', month: '2-digit', year: 'numeric', 
+                hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' 
             }).replace(/\//g, '-'),
             completedStands: [] 
         };
@@ -142,8 +167,12 @@ io.on('connection', (socket) => {
         io.emit('new_order_to_cashier', final);
     });
 
-    socket.on('confirm_payment', async (id) => {
-        const o = await Order.findOneAndUpdate({ id }, { status: 'PAID' }, { new: true });
+    // KONFIRMASI LUNAS KASIR (Ditambah nama kasir)
+    socket.on('confirm_payment', async (data) => {
+        const id = data.id || data; 
+        const cashierName = data.cashierName || 'Auto-System';
+
+        const o = await Order.findOneAndUpdate({ id }, { status: 'PAID', processedBy: cashierName }, { new: true });
         io.emit('order_paid_broadcast', o);
         io.emit('admin_update', await calculateStats());
     });
@@ -176,13 +205,10 @@ async function calculateStats() {
 const ExcelJS = require('exceljs');
 app.get('/download-report', async (req, res) => {
     try {
-        // Ambil semua order yang sudah lunas
         const orders = await Order.find({ status: 'PAID' });
-        
         const workbook = new ExcelJS.Workbook();
         const sheet = workbook.addWorksheet('Laporan Penjualan Detail');
 
-        // 1. SET HEADER KOLOM
         sheet.columns = [
             { header: 'ID ORDER', key: 'id', width: 15 },
             { header: 'TANGGAL & WAKTU', key: 'time', width: 25 },
@@ -192,36 +218,24 @@ app.get('/download-report', async (req, res) => {
             { header: 'MENU DIPESAN', key: 'menu', width: 25 },
             { header: 'QTY', key: 'qty', width: 8 },
             { header: 'HARGA TOTAL (INC. FEE)', key: 'total_item', width: 20 },
+            { header: 'KASIR (PENERIMA)', key: 'processedBy', width: 20 }, // KOLOM KASIR BARU
         ];
 
-        // Style Header (Biar Tebal & Berwarna)
         sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
-        sheet.getRow(1).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: '3d2b1f' } // Warna cokelat tua sesuai tema POS kita
-        };
+        sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '3d2b1f' } };
 
-        // 2. INPUT DATA (LOOPING PER ITEM)
         orders.forEach(o => {
             o.items.forEach(item => {
                 sheet.addRow({
-                    id: o.id,
-                    time: o.time, // Mengambil jam dari database
-                    user: o.user,
-                    table: o.table,
-                    stand: item.stand, // Mengambil nama stand dari tiap item
-                    menu: item.name,   // Nama menu
-                    qty: item.qty,     // Jumlah
-                    total_item: item.total // Harga (Price + Fee) * Qty
+                    id: o.id, time: o.time, user: o.user, table: o.table,
+                    stand: item.stand, menu: item.name, qty: item.qty, total_item: item.total,
+                    processedBy: o.processedBy || "Kasir Lama/Default" // Tampilkan nama kasir
                 });
             });
         });
 
-        // Set Format Mata Uang untuk Kolom Total
         sheet.getColumn(8).numFmt = '"Rp"#,##0';
 
-        // 3. KIRIM FILE KE BROWSER
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename=Laporan_Detail_${new Date().toLocaleDateString('id-ID')}.xlsx`);
 

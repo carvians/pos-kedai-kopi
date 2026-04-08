@@ -117,15 +117,19 @@
         });
 
         function payOrder(id, total, btnElement) {
-            // Tanya dulu ke kasir
-            if(confirm(`Uang Rp${total.toLocaleString()} dari pesanan #${id} sudah diterima?`)) {
+            // Ambil nama kasir dari memori login, jika kosong minta dia ketik manual
+            let cashierName = sessionStorage.getItem('staff_username');
+            if(!cashierName) cashierName = prompt("Masukkan Nama Kasir Anda:");
+            if(!cashierName) return; // Batal kalau tidak diisi
+
+            if(confirm(`Uang Rp${total.toLocaleString()} dari pesanan #${id} sudah diterima oleh ${cashierName}?`)) {
                 
-                socket.emit('confirm_payment', id);
+                // Kirim ID dan NAMA KASIR ke server
+                socket.emit('confirm_payment', { id: id, cashierName: cashierName });
                 
                 totalRevenue += total;
                 document.getElementById('revenue').innerText = 'Rp' + totalRevenue.toLocaleString();
                 
-                // --- PANGGIL FUNGSI CETAK STRUK ---
                 printReceipt(ordersMemory[id]);
 
                 const card = btnElement.closest(`div[id^="order-"]`);
@@ -141,8 +145,12 @@
         }
 
         // FUNGSI KHUSUS MERAKIT & MENCETAK STRUK
+        // FUNGSI KHUSUS MERAKIT & MENCETAK STRUK
         function printReceipt(order) {
             const printArea = document.getElementById('print-area');
+            
+            // Ambil nama kasir yang sedang login saat ini
+            const cashierName = sessionStorage.getItem('staff_username') || "Kasir Utama";
             
             // 1. Susun rincian menu
             let itemsHtml = order.items.map(i => `
@@ -161,8 +169,8 @@
                 
                 <div style="margin-bottom:10px; font-size:11px;">
                     <p style="margin:0;">No   : ${order.id}</p>
-                    <p style="margin:0;">Meja : ${order.table}</p>
-                    <p style="margin:0;">Nama : ${order.user}</p>
+                    <p style="margin:0;">Kasir: ${cashierName}</p> <p style="margin:0;">Meja : ${order.table}</p>
+                    <p style="margin:0;">Pelanggan : ${order.user}</p>
                     <p style="margin:0;">Waktu: ${order.time}</p>
                 </div>
                 

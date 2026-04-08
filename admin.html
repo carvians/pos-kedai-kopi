@@ -163,20 +163,22 @@
 
                 <div class="bg-stone-50 p-8 rounded-[2.5rem] border border-stone-100 shadow-inner">
                     <p class="text-xs font-black text-[#634832] uppercase tracking-widest mb-6 flex items-center gap-2.5">
-                        <span class="bg-[#634832] text-white w-5 h-5 flex justify-center items-center rounded-full text-[9px] font-black">2</span> KEAMANAN
+                        <span class="bg-[#634832] text-white w-5 h-5 flex justify-center items-center rounded-full text-[9px] font-black">2</span> KEAMANAN & STAFF
                     </p>
                     <div class="space-y-4">
-                        <p class="text-xs text-stone-400 font-bold leading-relaxed mb-1">Ganti password akses untuk role Admin pusat atau Kasir di sini.</p>
+                        <p class="text-xs text-stone-400 font-bold leading-relaxed mb-1">Daftarkan akun kasir baru dengan namanya di sini.</p>
                         
+                        <input type="text" id="p-username" placeholder="Nama Lengkap Kasir/Admin" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 placeholder:text-stone-400">
+
                         <select id="p-role" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 cursor-pointer">
-                            <option value="admin">⚙️ Akses Admin Pusat</option>
                             <option value="kasir">💳 Akses Kasir</option>
+                            <option value="admin">⚙️ Akses Admin Pusat</option>
                         </select>
                         
-                        <input type="password" id="p-new" placeholder="Ketik Password Baru" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 placeholder:text-stone-400">
+                        <input type="password" id="p-new" placeholder="Ketik Password" class="w-full p-4 md:p-5 neo-input font-bold text-stone-700 placeholder:text-stone-400">
                         
-                        <button onclick="updatePass()" class="w-full bg-stone-800 text-white p-5 rounded-xl font-black tracking-widest text-xs hover:bg-black transition-all shadow-xl mt-4">
-                            PERBARUI PASSWORD
+                        <button onclick="addStaff()" class="w-full bg-stone-800 text-white p-5 rounded-xl font-black tracking-widest text-xs hover:bg-black transition-all shadow-xl mt-4">
+                            DAFTARKAN / PERBARUI STAFF
                         </button>
                     </div>
                 </div>
@@ -250,11 +252,15 @@
             document.getElementById('paid-orders').innerText = s.paidOrders;
         });
 
-        function updatePass() {
-            const role = document.getElementById('p-role').value;
-            const password = document.getElementById('p-new').value;
-            if(!password) return alert("⚠️ Isi password baru!");
-            socket.emit('admin_update_password', { role, password });
+        function addStaff() {
+            const data = {
+                username: document.getElementById('p-username').value,
+                role: document.getElementById('p-role').value,
+                password: document.getElementById('p-new').value
+            };
+            if(!data.username || !data.password) return alert("⚠️ Isi nama dan password staff!");
+            socket.emit('admin_add_staff', data);
+            document.getElementById('p-username').value = ''; 
             document.getElementById('p-new').value = '';
         }
 
