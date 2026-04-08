@@ -107,6 +107,7 @@ io.on('connection', (socket) => {
     socket.on('submit_order', async (clientData) => {
         const dbMenu = await Menu.find();
         let validatedItems = [], subtotal = 0;
+        
         clientData.items.forEach(c => {
             const m = dbMenu.find(item => item.name === c.name);
             if (m) {
@@ -115,7 +116,25 @@ io.on('connection', (socket) => {
                 subtotal += total;
             }
         });
-        const final = { ...clientData, items: validatedItems, subtotal, ppn: subtotal*0.1, total: subtotal*1.1, status: 'WAITING_PAYMENT', time: new Date().toLocaleTimeString('id-ID'), completedStands: [] };
+
+        const final = { 
+            ...clientData, 
+            items: validatedItems, 
+            subtotal, 
+            ppn: subtotal * 0.1, 
+            total: subtotal * 1.1, 
+            status: 'WAITING_PAYMENT', 
+            // --- BAGIAN YANG DIUBAH: PAKSA KE WIB ---
+            time: new Date().toLocaleTimeString('id-ID', { 
+                timeZone: 'Asia/Jakarta', 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit', 
+                second: '2-digit' 
+            }), 
+            completedStands: [] 
+        };
+
         await new Order(final).save();
         io.emit('new_order_to_cashier', final);
     });
