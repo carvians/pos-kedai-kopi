@@ -40,13 +40,20 @@ const standAccountSchema = new mongoose.Schema({
 const StandAccount = mongoose.model('StandAccount', standAccountSchema);
 
 async function initDatabase() {
-    if (await Staff.countDocuments() === 0) {
-        // Buat akun default agar tetap bisa login
-        await Staff.insertMany([
-            { username: "admin_pusat", role: "admin", password: "admin123" }, 
-            { username: "kasir_utama", role: "kasir", password: "kasir123" }
-        ]);
+    // 1. Cek paksa apakah akun admin_pusat sudah ada
+    const adminExists = await Staff.findOne({ username: 'admin_pusat' });
+    if (!adminExists) {
+        await new Staff({ username: "admin_pusat", role: "admin", password: "admin123" }).save();
+        console.log('✅ Akun Master admin_pusat berhasil dipaksa masuk ke database!');
     }
+
+    // 2. Cek paksa apakah akun kasir_utama sudah ada
+    const kasirExists = await Staff.findOne({ username: 'kasir_utama' });
+    if (!kasirExists) {
+        await new Staff({ username: "kasir_utama", role: "kasir", password: "kasir123" }).save();
+        console.log('✅ Akun Master kasir_utama berhasil dipaksa masuk ke database!');
+    }
+    
     console.log('🚀 Semua data di MongoDB siap digunakan!');
 }
 
