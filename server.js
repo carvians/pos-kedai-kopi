@@ -56,8 +56,47 @@ app.use(express.json());
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'login.html')));
 app.get('/:page.html', (req, res) => res.sendFile(path.join(__dirname, req.params.page + '.html')));
 
+// --- BUKU TAMU UNTUK MELACAK SIAPA YANG ONLINE ---
+const onlineStaff = new Map(); // Menyimpan data: socket.id -> username
+
 io.on('connection', (socket) => {
     
+    // --- 1. FITUR BARU: PELACAK STATUS ONLINE ---
+    socket.on('staff_connected', (username) => {
+        if(username) {
+            onlineStaff.set(socket.id, username);
+            io.emit('staff_list_updated'); // Beritahu admin ada yang online
+        }
+    });
+
+    socket.on('disconnect', () => {
+        if (onlineStaff.has(socket.id)) {
+            onlineStaff.delete(socket.id);
+            io.emit('staff_list_updated'); // Beritahu admin ada yang offline
+        }
+    });
+
+    // --- FITUR BARU: AMBIL & HAPUS AKUN STAFF ---
+    socket.on('get_staff_accounts', async () => {
+        const staffs = await Staff.find({}, '-password'); 
+        const onlineUsernames = Array.from(onlineStaff.values()); 
+        
+        // Gabungkan data dari database dengan status online saat ini
+        const staffList = staffs.map(s => ({
+            username: s.username,
+            role: s.role,
+            isOnline: onlineUsernames.includes(s.username)
+        }));
+        
+        socket.emit('receive_staff_accounts', staffList);
+    });
+
+    socket.on('admin_delete_staff', async (username) => {
+        if(username === 'admin_pusat') return; 
+        await Staff.findOneAndDelete({ username });
+        io.emit('staff_list_updated');
+    });
+
     // --- LOGIN STAFF ---
     socket.on('attempt_staff_login', async (data) => {
         // Cek login pakai username atau role lama
@@ -86,6 +125,7 @@ io.on('connection', (socket) => {
                 await new Staff(data).save();
                 socket.emit('update_status', { success: true, message: `Akun Staff ${data.username} berhasil dibuat!` });
             }
+            io.emit('staff_list_updated'); // PENTING: Refresh list di admin
         } catch (err) {
             socket.emit('update_status', { success: false, message: "Gagal memproses akun staff." });
         }

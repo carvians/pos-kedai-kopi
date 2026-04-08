@@ -10,7 +10,6 @@
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #3d2b1f; color: white; }
         
-        /* Form Estetik (Sama dengan Admin) */
         .neo-input {
             background-color: #f5f3f0;
             border: 1px solid rgba(0,0,0,0.05);
@@ -44,7 +43,8 @@
             <div>
                 <label class="text-[10px] font-black text-[#634832] uppercase tracking-widest ml-2">Tujuan Akses</label>
                 <select id="login-type" onchange="toggleForm()" class="w-full mt-1 text-stone-700 text-sm neo-input block p-4 font-bold cursor-pointer">
-                    <option value="staff">💳 Admin Pusat / Kasir</option>
+                    <option value="kasir" selected>💳 Kasir Pusat</option>
+                    <option value="admin">⚙️ Administrator Utama</option>
                     <option value="stand">👨‍🍳 Kitchen Monitor (Dapur)</option>
                 </select>
             </div>
@@ -70,10 +70,10 @@
     <script>
         const socket = io();
 
-        // Menyembunyikan form password jika yang mau masuk adalah layar Dapur
         function toggleForm() {
             const type = document.getElementById('login-type').value;
             const form = document.getElementById('staff-form');
+            // Sembunyikan form username/pass JIKA memilih Dapur
             if(type === 'stand') {
                 form.style.display = 'none';
             } else {
@@ -84,7 +84,7 @@
         function login() {
             const type = document.getElementById('login-type').value;
 
-            // 1. JIKA KE DAPUR (Langsung masuk karena dapur punya password per-stand di dalamnya)
+            // 1. JIKA KE DAPUR
             if(type === 'stand') {
                 sessionStorage.setItem('staff_role', 'stand');
                 sessionStorage.setItem('is_logged_in', 'true');
@@ -92,25 +92,28 @@
                 return;
             }
 
-            // 2. JIKA ADMIN / KASIR (Validasi ke server)
+            // 2. JIKA ADMIN / KASIR
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
             if(!username || !password) return alert("⚠️ Username dan Password wajib diisi!");
 
-            // Kirim data ke server (Sekarang pakai Username)
             socket.emit('attempt_staff_login', { username, password });
         }
 
-        // Terima jawaban dari server
         socket.on('staff_login_result', (response) => {
             if (response.success) {
-                // Simpan "Tiket Masuk" dan NAMA KASIR di browser
+                // LOGIKA PROTEKSI EKSTRA: Pastikan role yg dipilih cocok dengan role aslinya di Database
+                const selectedType = document.getElementById('login-type').value;
+                if (selectedType !== response.role) {
+                    alert(`❌ Akses Ditolak! Akun '${response.username}' tidak memiliki izin untuk masuk sebagai ${selectedType.toUpperCase()}.`);
+                    return;
+                }
+
                 sessionStorage.setItem('staff_role', response.role);
-                sessionStorage.setItem('staff_username', response.username); // Penting untuk Excel!
+                sessionStorage.setItem('staff_username', response.username); 
                 sessionStorage.setItem('is_logged_in', 'true');
                 
-                // Arahkan ke halaman masing-masing
                 if (response.role === 'admin') window.location.href = "admin.html";
                 if (response.role === 'kasir') window.location.href = "kasir.html";
             } else {

@@ -10,28 +10,29 @@
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; background: #fdfaf7; }
         
-        /* --- KEAJAIBAN CSS UNTUK PRINTER THERMAL --- */
         @media print {
-            body * { visibility: hidden; } /* Sembunyikan semua UI Web */
-            #print-area, #print-area * { visibility: visible; } /* Tampilkan HANYA struk */
+            body * { visibility: hidden; } 
+            #print-area, #print-area * { visibility: visible; } 
             #print-area {
                 position: absolute;
                 left: 0;
                 top: 0;
-                width: 58mm; /* Lebar standar kertas kasir thermal */
+                width: 58mm; 
                 padding: 0;
                 margin: 0;
-                font-family: 'Courier New', Courier, monospace; /* Font khas struk */
+                font-family: 'Courier New', Courier, monospace; 
                 color: black;
             }
-            @page { margin: 0; } /* Hilangkan margin putih bawaan browser */
+            @page { margin: 0; } 
         }
     </style>
     <script>
-    // --- SCRIPT SATPAM ---
-    const isStaffLoggedIn = sessionStorage.getItem('is_logged_in');
+    // --- SCRIPT SATPAM SUPER KETAT ---
+    const currentCashier = sessionStorage.getItem('staff_username');
     const staffRole = sessionStorage.getItem('staff_role');
-    if (!isStaffLoggedIn || !staffRole) {
+    
+    // Jika tidak ada username yang terdaftar dari halaman login, TENDANG KELUAR!
+    if (!currentCashier || staffRole !== 'kasir') {
         window.location.replace("staff-login.html");
     }
     </script>
@@ -42,11 +43,8 @@
         <div>
             <h1 class="text-4xl font-black tracking-tight text-[#3d2b1f]">KASIR PUSAT 💳</h1>
             <div class="flex items-center gap-3 mt-3">
-                <p class="text-xs text-stone-500 font-bold uppercase tracking-widest">Kasir Bertugas:</p>
-                <span id="cashier-name-display" class="bg-orange-100 text-orange-700 px-3 py-1 rounded-lg text-xs font-black uppercase tracking-widest shadow-inner">...</span>
-                <button onclick="switchCashier()" class="bg-white border border-stone-300 hover:bg-stone-100 text-stone-600 px-3 py-1 rounded-lg text-[10px] font-bold transition-all shadow-sm">
-                    🔄 Ganti Kasir
-                </button>
+                <p class="text-xs text-stone-500 font-bold uppercase tracking-widest">Akun Aktif:</p>
+                <span id="cashier-name-display" class="bg-orange-100 text-orange-700 px-4 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest shadow-inner"></span>
             </div>
         </div>
         
@@ -56,7 +54,7 @@
                 <h2 id="revenue" class="text-3xl font-black text-green-600">Rp0</h2>
             </div>
             <button onclick="logout()" class="bg-red-50 text-red-500 hover:bg-red-500 hover:text-white border border-red-100 px-6 py-3 rounded-2xl text-xs font-bold transition-all active:scale-95 shadow-sm">
-                Keluar
+                LOG OUT SHIFT
             </button>
         </div>
     </header>
@@ -69,22 +67,19 @@
 
     <main id="cashier-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-max"></main>
 
-    <div id="print-area" class="hidden absolute top-0 left-0 bg-white text-black p-4 text-[12px] leading-snug w-[58mm]">
-        </div>
+    <div id="print-area" class="hidden absolute top-0 left-0 bg-white text-black p-4 text-[12px] leading-snug w-[58mm]"></div>
 
     <script>
         const socket = io();
         
-        // 1. CEK IDENTITAS KASIR & PEMASUKAN DARI BRANKAS BROWSER
-        let currentCashier = sessionStorage.getItem('staff_username');
-        if (!currentCashier) {
-            currentCashier = prompt("Mulai Shift! Siapa nama Anda?");
-            if (!currentCashier) currentCashier = "Kasir Utama";
-            sessionStorage.setItem('staff_username', currentCashier);
-        }
+        // --- SAYA HANYA MENAMBAHKAN BARIS INI ---
+        // Lapor ke server bahwa kasir ini sedang ONLINE
+        if (currentCashier) socket.emit('staff_connected', currentCashier);
+        
+        // Langsung tampilkan nama dari session login yang valid
         document.getElementById('cashier-name-display').innerText = currentCashier;
 
-        // 2. CEK PEMASUKAN AGAR TAHAN REFRESH
+        // Ambil data pemasukan shift agar tahan refresh
         let totalRevenue = parseInt(sessionStorage.getItem('shift_revenue')) || 0;
         document.getElementById('revenue').innerText = 'Rp' + totalRevenue.toLocaleString();
 
@@ -135,21 +130,18 @@
             new Audio('https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3').play();
         });
 
-        // 3. FUNGSI TERIMA UANG (UPDATE BRANKAS BROWSER)
+        // FUNGSI TERIMA UANG
         function payOrder(id, total, btnElement) {
-            // Tarik ulang nama kasir in case baru diganti
-            const activeCashier = sessionStorage.getItem('staff_username');
-
-            if(confirm(`Uang Rp${total.toLocaleString()} dari pesanan #${id} sudah diterima oleh ${activeCashier}?`)) {
+            // Gunakan currentCashier yang sudah dikunci dari login
+            if(confirm(`Uang Rp${total.toLocaleString()} dari pesanan #${id} diterima oleh akun: ${currentCashier}?`)) {
                 
-                socket.emit('confirm_payment', { id: id, cashierName: activeCashier });
+                socket.emit('confirm_payment', { id: id, cashierName: currentCashier });
                 
-                // Tambah pemasukan dan SIMPAN ke brankas browser agar tahan refresh
                 totalRevenue += total;
                 sessionStorage.setItem('shift_revenue', totalRevenue);
                 document.getElementById('revenue').innerText = 'Rp' + totalRevenue.toLocaleString();
                 
-                printReceipt(ordersMemory[id], activeCashier);
+                printReceipt(ordersMemory[id], currentCashier);
 
                 const card = btnElement.closest(`div[id^="order-"]`);
                 card.classList.add('scale-75', 'opacity-0'); 
@@ -163,26 +155,12 @@
             }
         }
 
-        // FUNGSI GANTI KASIR (SHIFT BARU)
-        function switchCashier() {
-            const newName = prompt("Ketik nama kasir yang baru bertugas:");
-            if(newName) {
-                sessionStorage.setItem('staff_username', newName);
-                document.getElementById('cashier-name-display').innerText = newName;
-                
-                // Tanyakan apakah mau mereset angka pemasukan
-                if(confirm(`Apakah Anda ingin mereset angka "Pemasukan Shift Ini" menjadi Rp0 untuk shift ${newName}?`)) {
-                    totalRevenue = 0;
-                    sessionStorage.setItem('shift_revenue', 0);
-                    document.getElementById('revenue').innerText = 'Rp0';
-                }
-            }
-        }
-
-        // FUNGSI KELUAR
+        // FUNGSI KELUAR (Wajib kalau mau ganti kasir)
         function logout() {
-            sessionStorage.clear();
-            window.location.replace("staff-login.html");
+            if(confirm("Yakin ingin mengakhiri shift kasir ini? Pemasukan shift akan di-reset.")) {
+                sessionStorage.clear();
+                window.location.replace("staff-login.html");
+            }
         }
 
         // FUNGSI CETAK STRUK
