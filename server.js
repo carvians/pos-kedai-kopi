@@ -173,15 +173,62 @@ async function calculateStats() {
 const ExcelJS = require('exceljs');
 app.get('/download-report', async (req, res) => {
     try {
+        // Ambil semua order yang sudah lunas
         const orders = await Order.find({ status: 'PAID' });
-        const wb = new ExcelJS.Workbook();
-        const sheet = wb.addWorksheet('Laporan');
-        sheet.columns = [{header:'ID',key:'id'}, {header:'Pelanggan',key:'user'}, {header:'Total',key:'total'}];
-        orders.forEach(o => sheet.addRow(o));
+        
+        const workbook = new ExcelJS.Workbook();
+        const sheet = workbook.addWorksheet('Laporan Penjualan Detail');
+
+        // 1. SET HEADER KOLOM
+        sheet.columns = [
+            { header: 'ID ORDER', key: 'id', width: 15 },
+            { header: 'TANGGAL & WAKTU', key: 'time', width: 25 },
+            { header: 'NAMA PELANGGAN', key: 'user', width: 20 },
+            { header: 'MEJA', key: 'table', width: 10 },
+            { header: 'NAMA STAND', key: 'stand', width: 20 },
+            { header: 'MENU DIPESAN', key: 'menu', width: 25 },
+            { header: 'QTY', key: 'qty', width: 8 },
+            { header: 'HARGA TOTAL (INC. FEE)', key: 'total_item', width: 20 },
+        ];
+
+        // Style Header (Biar Tebal & Berwarna)
+        sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFF' } };
+        sheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: '3d2b1f' } // Warna cokelat tua sesuai tema POS kita
+        };
+
+        // 2. INPUT DATA (LOOPING PER ITEM)
+        orders.forEach(o => {
+            o.items.forEach(item => {
+                sheet.addRow({
+                    id: o.id,
+                    time: o.time, // Mengambil jam dari database
+                    user: o.user,
+                    table: o.table,
+                    stand: item.stand, // Mengambil nama stand dari tiap item
+                    menu: item.name,   // Nama menu
+                    qty: item.qty,     // Jumlah
+                    total_item: item.total // Harga (Price + Fee) * Qty
+                });
+            });
+        });
+
+        // Set Format Mata Uang untuk Kolom Total
+        sheet.getColumn(8).numFmt = '"Rp"#,##0';
+
+        // 3. KIRIM FILE KE BROWSER
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename=Laporan.xlsx');
-        await wb.xlsx.write(res); res.end();
-    } catch (e) { res.status(500).send("Gagal"); }
+        res.setHeader('Content-Disposition', `attachment; filename=Laporan_Detail_${new Date().toLocaleDateString('id-ID')}.xlsx`);
+
+        await workbook.xlsx.write(res);
+        res.end();
+
+    } catch (err) {
+        console.error("Excel Error:", err);
+        res.status(500).send("Gagal mengunduh laporan detail.");
+    }
 });
 
 http.listen(PORT, () => console.log(`POS System Secure on port ${PORT}`));
